@@ -1,0 +1,476 @@
+---
+title: "Quality control report for `r experimentTitle`"
+date: "`r report.date`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+---
+
+
+
+
+```{r options, echo=FALSE}
+options(replace.assign=TRUE, width=90)
+opts_chunk$set(dev="png",
+               fig.align='center',
+               fig.pos='htbp',
+               dpi=300,
+               out.width='504px',
+               echo=FALSE,
+               fig.retina=FALSE,
+			   fig.path=sprintf("%s/", outputExtrasDir)
+			   )
+```
+
+
+
+
+# Data set summary
+
+The data set was composed of `r nrow(pData(rccSet))` samples and `r sum(fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))` genes. 
+
+
+
+
+# Technical metrics
+
+As a first step in quality control, we assess whether technical aspects differed across samples.
+
+## Fields of view
+
+According to the [nCounter&reg; Expression Data Analysis Guide](http://www.nanostring.com/media/pdf/MAN_nCounter_Gene_Expression_Data_Analysis_Guidelines.pdf), "the nCounter&reg; Digital Analyzer images each lane in discrete units, called fields of view (FOV). Optical issues, such as an inability to focus due to bubbles or insufficient oiling of the cartridge, can prevent successful imaging of a FOV. The Digital Analyzer reports the number of FOVs successfully imaged as "FOV Counted." Significant discrepancy between the number of FOV for which imaging was attempted (FOV Count) and for which imaging was successful (FOV Counted) may be indicative of an issue with imaging performance." Samples with less than 80% FOV Counted are highlighted in red:
+
+```{r flags_fov_plot}
+flags <- rep(FALSE, ncol(rccSet)*3)
+dim(flags) <- c(ncol(rccSet), 3)
+rownames(flags) <- colnames(rccSet)
+colnames(flags) <- c("TechnicalFlags", "ControlFlags", "CountFlags")
+fovPlot(rccSet)
+```
+
+## Binding density
+
+As the nCounter&reg; Digital Analyzer only counts non-overlapping codes, significant data loss could occur if there are too many codes in the imaged area. The nCounter&reg; Digital Analyzer calculates a Binding Density as a measure of image saturation. For details, please see the [nCounter&reg; Expression Data Analysis Guide](http://www.nanostring.com/media/pdf/MAN_nCounter_Gene_Expression_Data_Analysis_Guidelines.pdf). According to NanoString&reg;, Binding Density which is either too low (< 0.05) or too high (> 2.25) is indicative of technical issues (e.g., excess RNA input); such samples are marked in red:
+
+```{r bd_plot}
+bdPlot(rccSet)
+```
+
+## Technical metrics summary
+
+```{r tech_flags}
+flags[,"TechnicalFlags"][flagSamplesTech(rccSet)] <- TRUE
+```
+
+Assessment of these technical factors resulted in flagging of `r sum(flags[,"TechnicalFlags"])` sample(s).
+
+
+
+
+# Control probe metrics
+
+## Negative and positive control probes
+
+All NanoString&reg; runs contain negative control probes that are designed to not hybridize to any human target. The background signal reported by the negative control probes typically differs somewhat from probe to probe. 
+
+Positive control probes and associated spike-ins are also part of every NanoString&reg; run. For positive controls, there should be a linear relationship between the nominal input concentration and the reported counts. Because spike-ins differ by a common dilution factor, this linearity should be visible in the positive control box plot when counts are plotted on a logarithmic scale:
+
+```{r control_plots1}
+ctrlsOverviewPlot(rccSet)
+```
+
+## Sample-specific background level
+
+Negative control probes can be used to determine lane-specific (i.e., sample-specific) background noise levels:
+
+```{r control_plots2}
+negCtrlsByLane(rccSet)
+```
+
+## Spike-in linearity
+
+The slope estimate produced by fitting the linear model *log(counts) ~ log(input)* shows how well an increase in spike-in input is reflected by an increase in counts. Thresholds for identification of outliers (dotted red lines) were determined using the *`r method`* method (see package documentation for this function); outliers, if any, are colored in red:
+
+```{r control_plots3}
+posSlopePlot(rccSet, method, cutoff)
+```
+
+## Control probe interquartile range
+
+We can make use of the negative and positive controls for further quality control. For instance, an increased or decreased spread of the data stemming from the negative or positive controls might be indicative of technical issues (such as increased background or decreased dynamic range). Below, we plot the interquartile range (IQR) for negative and positive control probes. Thresholds for identification of outliers (dotted red lines) were determined using the *`r method`* method. Outliers, if any, are colored in red:
+
+```{r iqr_plots, results="hide"}
+iqrPlot(rccSet, "Negative", method, cutoff)
+iqrPlot(rccSet, "Positive", method, cutoff)
+```
+
+## Positive control scaling factors
+
+Finally, the overall signal for the spike-in controls may identify lanes experiencing technical issues. NanoString&reg; suggests calculating a positive control scaling factor; if this scaling factor is outside a range of 0.3 - 3, it may indicate significant under-performance, and such results should be interpreted with caution. If one chooses to do so, the positive control scaling factor can be used to adjust count data for endogenous genes, to account for all technical sources of variation (e.g., purification, hybridization, etc). Samples with positive control scaling factors outside the recommended range are colored in red:
+
+```{r pos_norm_fact_plot}
+posNormFactPlot(rccSet)
+```
+
+## Control probe metrics summary
+
+```{r flagging_part_two}
+tmp <- flagSamplesCtrl(rccSet, method, cutoff)
+flags[,"ControlFlags"][tmp] <- TRUE
+```
+
+`r sum(flags[,"ControlFlags"])` sample(s) were flagged based on the performance of the controls.
+
+
+
+
+# Count-based metrics
+
+Problematic samples may exhibit unusual overall counts, or have many targets with counts below the background estimate.
+
+In each plot in this section, blank samples (if present in the experiment) are displayed as triangles. Thresholds for identification of outliers (dotted red lines) were determined using the *`r method`* method (see package documentation for this function); outliers, if any, are colored in red. 
+
+## Total counts and positive control counts
+
+We first plot the sum of all counts for each sample, excluding control probes. These counts reflect the amount of RNA input in each sample; any outliers might not have had enough input to permit reliable detection of genes with low expression levels. The next plot shows the ratio of positive control counts to all non-control counts for each sample.
+
+```{r sum_plots}
+allSumPlot(rccSet, method, cutoff)
+#npair <- list(allSum=c("Endogenous", "Housekeeping"), posSum="Positive")
+#sumRatioPlot(rccSet, npair, method, cutoff)
+npair <- list(posSum="Positive", allSum=c("Endogenous", "Housekeeping"))
+sumRatioPlot(rccSet, npair, method, cutoff)
+```
+
+## Gene detection count
+
+For each sample, we plot the number of genes with counts that were below the estimated background, defining the LLOD using *`r reference`*. Samples with more than `r maxMiss * 100` % of genes missing are colored in red: 
+
+```{r lod}
+misValues <- lodAssess(rccSet, reference=reference)
+lodPlot(rccSet, reference=reference, maxMiss=maxMiss)
+```
+
+## Count-based metrics summary
+
+```{r flagging_part_three}
+tmp <- flagSamplesCount(rccSet, method, cutoff, reference, maxMiss=maxMiss)
+flags[,"CountFlags"][tmp] <- TRUE
+```
+
+Assessment of these metrics resulted in flagging of `r sum(flags[,"CountFlags"])` sample(s).
+In total, `r length(unique(unlist(apply(flags, 2, which))))` sample(s) were flagged based on quality metrics.
+
+
+
+
+# Similarity between samples
+
+Below, sample to sample correlations are visualized in a heatmap, and samples are clustered using an unsupervised method. Deeper color represents a stronger correlation:
+
+```{r sample_gene_clustering, fig.height=9}
+sampleClustering(
+    rccSet,
+    log.transform=TRUE,                         # TODO: may not actually be doing anything (cf. sampleClustering() definition) -RZ 2015-03-10
+    main="Sample correlations in raw data",
+    covar=covar
+)
+flags2 <- cbind(SampleIdentifier=sub("X", "", rownames(flags)),                 # TODO: is the sub() call still necessary? -RZ 2015-03-12
+                SampleName=as.character(pData(rccSet)[, SampleName]), 
+                flags)
+flags2 <- cbind(flags2, SampleType=pData(rccSet)$SampleType)
+
+write.table(flags2, file=file.path(outputExtrasDir, "SampleFlags.txt"), sep="\t", row.names=FALSE, quote=FALSE)
+```
+
+
+
+
+# Probe level QC
+
+## Probe behavior in blank samples
+
+Blank samples allow background signal estimation in a probe-specific fashion. Blank samples also enable detection of other suspicious behavior, e.g., elevated background counts that might indicate problems during probe-target hybridization. If blank samples were included in the data set, you will see a plot below showing the distribution of each gene's counts in the blanks as well as the estimated, probe-specific background (red dots):
+
+```{r blanks, results="hide", cache=FALSE, message=FALSE}
+if (hasBlanks(rccSet))
+{
+  blanks <- (pData(rccSet)$SampleType %in% blankLabel)
+  endo   <- which(fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
+
+  M <- assayData(rccSet)$exprs
+
+  boxplot(t(M[endo, blanks]), 
+          log="y",
+          ylab="Counts (raw)",
+          pch=".",
+          xlab="Probes",
+		  main="Gene-wise counts in blank measurements",
+          xaxt="n")
+  sapply(endo,
+         function(n) {
+		   points(y = median(M[n, blanks]) + (2.5*mad(M[n, blanks])),
+                  col="red", pch=20, x=n, cex=0.7)
+         })
+}
+```
+
+## Probes with extreme counts
+
+Probes which rarely produced signals above the LLOD are not informative for your experiment. On the other hand, if a small number of probes scavenge the majority of counts because their targets were extremely highly expressed, detection of low abundance transcripts may be compromised.
+
+To address these two issues, we first look at the least detectable genes.  If multiple sample types were defined, we determine for each sample type separately the genes that produced counts above the estimated background in less then 50% of these samples:
+
+```{r detectability, results="hide", cache=FALSE, message=FALSE}
+
+if (preproc(rccSet)$state %in% c("subtractBackground", "preprocRccSet")) {
+  M <- assayData(rccSet)$bgCorrData
+} else {
+  prccSet <- suppressMessages( posCtrlNorm(rccSet, metric="sum") )
+  if (hasBlanks(rccSet)) {
+    bgEstimates <- getBackground(prccSet, reference="blank", metric="median", stringency=2.5)
+    srccSet <- subtractBackground(rccSet=prccSet, bgEstimates=bgEstimates)
+  } else {
+    bgEstimates <- getBackground(prccSet, reference="Negative", metric="median", stringency=2.5)
+    srccSet <- subtractBackground(rccSet=prccSet, bgEstimates=bgEstimates)
+  }
+  M <- assayData(srccSet)$bgCorrData
+}
+rownames(M) <- fData(rccSet)$GeneName
+
+## define non-controls
+endo      <- which(fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
+## get all the sample types of interest, excluding undefined and blanks
+sampleT <- unique(pData(rccSet)$SampleType)
+sampleT <- sampleT[ !(sampleT %in% blankLabel) ]    # N.B. Don't use == here since it doesn't properly handle NAs in SampleType.
+sampleT <- sampleT[!is.na(sampleT)] 
+
+## loop over sample types
+par(mfrow=c(1, length(sampleT)))
+sapply(sampleT,
+       function(st)  {
+          tmp <- (pData(rccSet)$SampleType %in% st)      # N.B. Don't use == here.
+          subData <- M[endo, tmp, drop=FALSE]
+
+          detect <- apply(M[endo, tmp, drop=FALSE], 1, function(x) { 
+                          sum(x > 1) / length(endo) * 100 })
+          names(detect) <- fData(rccSet)$GeneName[endo]
+
+          lowDetect <- which(detect < 50)
+          if (length(lowDetect) > 0) {
+            barplot(sort(detect[lowDetect], decreasing=TRUE),
+                  main="Genes with > 50% missing",
+                  horiz=TRUE,
+                  xlab="samples with counts above background [%]",
+                  las=2,
+                  cex.names=min(0.2 + 1/log2(length(lowDetect)), 1.2))
+          } else {
+            print("Nothing to plot (all probes passed the detectability check)")    # TODO: check this
+          }
+})
+par(mfrow=c(1,1))
+```
+
+Next, we show the five genes that produced the highest average counts; again, if multiple sample types were defined, the data will be split accordingly:
+
+```{r scavengers, results="hide", cache=FALSE, message=FALSE}
+
+M <- assayData(rccSet)$exprs
+rownames(M) <- fData(rccSet)$GeneName
+
+par(mfrow=c(1, length(sampleT)))
+sapply(sampleT,
+       function(st)  {
+         tmp <- (pData(rccSet)$SampleType %in% st)      # N.B. Don't use == here.
+         subData <- M[endo, tmp, drop=FALSE]
+         maxes <- names(tail(sort(rowMeans(subData))))
+         toPlot <- apply(subData[maxes,,drop=FALSE],
+                         1,
+                         function(x) { x/colSums(subData) * 100 })
+         if(!is.matrix(toPlot)) {  
+           plot(toPlot, las=2, cex.axis=0.7, main=st, ylab="% counts of all counts", xaxt="n", xlab="")
+           axis(1, at=1:6, labels=names(toPlot), las=2)
+         } else {
+            boxplot(toPlot, las=2, cex.axis=0.7, main=st, ylab="% counts of all counts")
+         }
+       })
+par(mfrow=c(1,1))
+```
+
+
+
+
+# QC metrics in normalized data
+
+## Housekeeping genes
+
+After other preprocessing steps, data need to be normalized to correct for count differences caused by varying RNA input amounts. A popular method for doing so is using gene expression levels of housekeeping genes. We first inspect the expression of housekeeping genes across all samples to assess their suitability as normalization factors:
+
+```{r assess_housekeeping}
+if ((sum(fData(rccSet)$CodeClass == "Housekeeping") > 1)
+    || (("is.housekeeping" %in% colnames(fData(rccSet))) && (sum(fData(rccSet)$is.housekeeping) > 1)))
+{
+  if ("is.housekeeping" %in% colnames(fData(rccSet))) {
+    tmp <- assessHousekeeping(rccSet, hk=fData(rccSet)$is.housekeeping, covar=covar)
+  } else {
+    tmp <- assessHousekeeping(rccSet, hk=fData(rccSet)$CodeClass == "Housekeeping", covar=covar)
+  }
+  write.table(tmp, file=file.path(outputExtrasDir, "HousekeepingGeneStats.txt"), sep="\t", row.names=FALSE)
+} else {
+  print("Too few housekeeping genes were defined.")
+}
+```
+
+Additional metrics for assessing housekeeping gene behavior are available [here](`r file.path(outputExtrasDir, "HousekeepingGeneStats.txt")`).
+
+## Housekeeping and global median normalization
+
+Another way to normalize data is to use information of all genes measured in the panel and to normalize by their median. Here we show the overall distribution of counts in all samples using raw data, and data normalized by housekeeping genes (if applicable) and scaling to global median:
+
+```{r normalization_comparison_densities, results="hide", cache=FALSE, message=FALSE}
+
+rawData <- assayData(rccSet)$exprs
+
+if ((preproc(rccSet)$state == "preprocRccSet")
+    && (preproc(rccSet)$exprs == "Preprocessed and median-normalized data"))
+{
+    gmnormData <- assayData(rccSet)$normData
+} else {
+    gmrccSet <- suppressMessages( contentNorm(rccSet, method="median") )
+    gmnormData <- assayData(gmrccSet)$normData
+}
+
+if ((preproc(rccSet)$state == "preprocRccSet")
+    && (preproc(rccSet)$exprs == "Preprocessed and housekeeping-normalized data"))
+{
+    hknormData <- assayData(rccSet)$normData
+} else if (hasPanelHousekeeping(rccSet)) {
+    hkrccSet <- suppressMessages( contentNorm(rccSet, method="housekeeping") )
+    hknormData <- assayData(hkrccSet)$normData
+} else {
+    hknormData <- NULL
+}
+
+nonctrls <- (fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
+rawData.nonctrls <- rawData[ nonctrls, ]
+gmnormData.nonctrls <- gmnormData[ nonctrls, ]
+hknormData.nonctrls <- hknormData[ nonctrls, ]      # If hknormData is NULL, this will be NULL too.
+
+densityPlot(rawData.nonctrls,
+            pdata=pData(rccSet),
+            covar=covar,
+            log.transform=TRUE, 
+		    main="Count distribution in raw data")
+
+densityPlot(gmnormData.nonctrls,
+            pdata=pData(rccSet),
+            covar=covar, 
+		    main="Count distribution in data\nnormalized by global median")
+
+if (!is.null(hknormData.nonctrls)) {
+	densityPlot(hknormData.nonctrls,
+                pdata=pData(rccSet),
+                covar=covar, 
+		        main="Count distribution in data\nnormalized by housekeeping genes")
+}
+
+```
+
+Then, we have a closer look at how different normalization methods perform with respect to inferred gene-gene correlation. If you have prior knowledge about which genes you expect to cluster together, the heatmaps allow you to check the impact of normalization:
+
+```{r geneclustering_functions, echo=FALSE}
+
+geneClusteringPNG(M            = gmnormData[ nonctrls, ],
+                  main         = "Gene clustering on data normalized by global median",
+                  labels       = fData(rccSet)$GeneName[ nonctrls ],
+                  mainImage    = gmMainImage,
+                  previewImage = gmPreviewImage)
+
+# TODO: hknormData
+
+```
+
+<!-- TODO: debug geneClustering for hknormData for example_rccSet -->
+
+<div class="centered"><a href="`r gmMainImage`"><img src="`r gmPreviewImage`"></a></div>
+
+
+# Recommendations
+
+## QC flag summary
+
+The following table lists all samples and marks those flagged by QC metrics with an "X":
+
+```{r flagged_samples, warning=FALSE, results="asis"}
+rownames(flags2) <- NULL
+flags2[flags2 == FALSE] <- ""
+flags2[flags2 == TRUE] <- "X"
+kable(flags2, format="html", table.attr = 'id="datatable"')
+```
+
+[Download as tab-delimited text file](`r file.path(outputExtrasDir, "SampleFlags.txt")`)
+
+## Clustering and QC-flagged samples
+
+Below, we center each gene across all samples and perform a clustering based on correlation. Blue means lower expression than the mean of all samples, red higher expression. The colored bars above the heatmap indicate samples flagged in different QC categories:
+
+```{r heatmap_all, fig.height=9}
+centered <- apply(gmnormData.nonctrls, 1, scale, center=TRUE, scale=FALSE)
+row.cl <- as.dendrogram( hclust( as.dist( 1-cor(centered)), method="ward.D"))
+col.cl <- as.dendrogram( hclust( as.dist( 1-cor(t(centered))), method="ward.D"))
+#annColors=lapply( seq_along( colnames( flags )), function(n){
+#  setNames( c("grey90", brewer.pal(ncol(flags), "Set1")[n]), c(FALSE, TRUE))
+#  })
+#names(annColors) <- colnames(flags)
+
+aheatmap( t(centered), 
+          labRow=NA,
+          labCol=NA,
+          Colv=col.cl,
+          Rowv=row.cl,
+          #annColors=annColors,
+          annCol=flags,
+          scale="none", 
+          col="-RdBu",
+          breaks=0,
+          main="Clustering of all samples run")
+```
+
+Finally, we exclude all flagged samples and recluster. The colored bar above the plot now represents the total number of counts per sample, with deeper color reflecting more counts.
+
+```{r heatmap_pass, fig.height=9, message=FALSE, results="hide"}
+flagged <- unique(unlist(apply(flags, 2, which)))
+if (length(flagged) < nrow(pData(rccSet))) {
+  unflagged.rccSet <- rccSet[, -flagged]
+  unflagged.rawData <- assayData(unflagged.rccSet)$exprs
+  unflagged.gmrccSet <- suppressMessages( contentNorm(unflagged.rccSet, method="median") )
+  unflagged.gmnormData <- assayData(unflagged.gmrccSet)$normData
+  allSum <- colSums(unflagged.rawData[ fData(unflagged.rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"), ])
+  centered <- apply(unflagged.gmnormData, 1, scale, center=TRUE, scale=FALSE)
+  row.cl <- as.dendrogram( hclust( as.dist( 1-cor(centered)), method="ward.D"))
+  col.cl <- as.dendrogram( hclust( as.dist( 1-cor(t(centered))), method="ward.D"))
+  aheatmap( t(centered), 
+          labRow=NA,
+          labCol=NA,
+          Colv=col.cl,
+          Rowv=row.cl,
+          scale="none", 
+          annCol=data.frame(counts=allSum), 
+          col="-RdBu",
+          breaks=0,
+          main="Sample Clustering after exclusion of outlier samples")
+}
+```
+
+
+
+
+# SessionInfo
+
+This report was created by `r Sys.info()[["user"]]` on `r as.character(Sys.time())`.
+
+```{r session_info, results='asis'}
+print(sessionInfo())
+```
+
