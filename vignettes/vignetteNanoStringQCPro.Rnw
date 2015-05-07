@@ -83,11 +83,11 @@ options(warn=0)
 @
 <<>>=
 exampleDataDir <- system.file("extdata", package="NanoStringQCPro")
-
+rccDir <- file.path(exampleDataDir, "RCC")
 example_rccSet <- newRccSet(
-     rccDir                 = file.path(exampleDataDir, "RCC")
+     rccFiles               = dir(rccDir, full.names=TRUE)
    #,rccCollectorToolExport = file.path(exampleDataDir, "nSolver", "RCC_collector_tool_export.csv")
-    ,rlfPath                = file.path(exampleDataDir, "RLF", "NQCP_example.rlf")
+    ,rlf                    = file.path(exampleDataDir, "RLF", "NQCP_example.rlf")
     ,cdrDesignData          = file.path(exampleDataDir, "CDR", "CDR-DesignData.csv")
     ,extraPdata             = file.path(exampleDataDir, "extraPdata", "SampleType.txt")
     ,blankLabel             = "blank"
@@ -99,11 +99,11 @@ example_rccSet <- newRccSet(
 )
 
 # Reading RCC files...
-# validRccSet() messages:
-#   The following panel housekeeping genes were found: USP19
+# checkRccSet() messages:
+#   The following panel housekeeping genes were found: RBCK1, USP19
 @
 
-Raw count data is stored in a series of Reporter Code Count (\Rcode{.RCC}) files where each file holds the data for one sample. The \Rcode{rccDir} argument should be assigned a path to a directory containing these files. Alternatively, the \Rcode{.CSV} file produced using the RCC Collector Tool Format Export feature of NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software can be imported instead via the \Rcode{rccCollectorToolExport} argument (commented out in the example above), but we recommend importing the \Rcode{.RCC} files directly if they are available. Details for each probe in the codeset used in the experiment are specified in a Reporter Library File (\Rcode{.RLF}): a path to this file must always be specified via the \Rcode{rlfPath} argument. Optional additional details for each probe are usually provided by NanoString\textsuperscript{\textregistered}\ in the ``Design Data'' tab of the Codeset Design Report (CDR) --- an Excel spreadsheet that accompanies each codeset order. To import these details, an extract of the ``Design Data'' tab should be saved as a \Rcode{.CSV} file (see \Rcode{extdata/CDR} for an example) and then its path should be specified in the \Rcode{cdrDesignData} argument.
+Raw count data is stored in a series of Reporter Code Count (\Rcode{.RCC}) files where each file holds the data for one sample. The \Rcode{rccFiles} argument should be assigned a vector of paths to these files. Alternatively, the \Rcode{.CSV} file produced using the RCC Collector Tool Format Export feature of NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software can be imported instead via the \Rcode{rccCollectorToolExport} argument (commented out in the example above), but we recommend importing the \Rcode{.RCC} files directly if they are available. Details for each probe in the codeset used in the experiment are specified in a Reporter Library File (\Rcode{.RLF}): a path to this file must always be specified via the \Rcode{rlf} argument. Optional additional details for each probe are usually provided by NanoString\textsuperscript{\textregistered}\ in the ``Design Data'' tab of the Codeset Design Report (CDR) --- an Excel spreadsheet that accompanies each codeset order. To import these details, an extract of the ``Design Data'' tab should be saved as a \Rcode{.CSV} file (see \Rcode{extdata/CDR} for an example) and then its path should be specified in the \Rcode{cdrDesignData} argument.
 
 The function has a few optional arguments that are described in more detail in its man page and in \textbf{Sample annotation} and \textbf{Codeset annotation} in the following section. For examples of the various input files, see the \Rcode{extdata} directory included with the package and the \textbf{Example files} section at the end of this vignette.
 
@@ -129,13 +129,13 @@ Note that \Biocpkg{Biobase} provides accessor functions for most key content: \R
  
 \subsection{Sample annotation}
 
-Any descriptions or details about the samples that are already present in the \Rcode{.RCC} files will be extracted by \Rfunction{newRccSet()} and stored in the \Rcode{phenoData} slot. Such details are often limited and insufficient for downstream work, so additional sample annotation can be added via \Rcode{.csv} files specified in a vector of paths passed to the function's \Rcode{extraPdata} argument. Each of these annotation files should be comma-separated and should contain a column labeled \Rcode{FileName} whose values are the exact \Rcode{.RCC} file names. The \Rcode{FileName} column is used as the primary key for merging the annotation columns into \Rcode{phenoData}, and the function will return an error if it contains any missing or additional \Rcode{.RCC} filenames. One particularly important bit of sample information that can be added via one of these annotation files is the \Rcode{SampleType} column used primarily by the preprocessing and QC report functions to identify blank samples (i.e. water runs). If this column isn't specified as such, it will be assigned with default value \Rcode{NA} for all samples. (Note also that the `\Rcode{blankLabel}' argument to \Rcode{newRccSet()} should be the same as the value used in the annotation file.)
+Any descriptions or details about the samples that are already present in the \Rcode{.RCC} files will be extracted by \Rfunction{newRccSet()} and stored in the \Rcode{phenoData} slot. Such details are often limited and insufficient for downstream work, so additional sample annotation can be added via \Rcode{.CSV} files specified in a vector of paths passed to the function's \Rcode{extraPdata} argument. Each of these annotation files should be comma-separated and should contain a column labeled \Rcode{FileName} whose values are the exact \Rcode{.RCC} file names. The \Rcode{FileName} column is used as the primary key for merging the annotation columns into \Rcode{phenoData}, and the function will return an error if it contains any missing or additional \Rcode{.RCC} filenames. One particularly important bit of sample information that can be added via one of these annotation files is the \Rcode{SampleType} column used primarily by the preprocessing and QC report functions to identify blank samples (i.e. water runs). If this column isn't specified as such, it will be assigned with default value \Rcode{NA} for all samples. (Note also that the `\Rcode{blankLabel}' argument to \Rcode{newRccSet()} should be the same as the value used in the annotation file.)
 
 \subsection{Codeset annotation}
 
 Three feature annotation columns (\Rcode{CodeClass}, \Rcode{GeneName}, \Rcode{Accession}) are extracted from the \Rcode{.RCC} files and stored in the \Rcode{featureData} slot. Their concatenation (``\Rcode{<CodeClass>\_<GeneName>\_<Accession>}'') is used for the \Rcode{featureData} row names and thus serves as a primary key for features; probe details in the \Rcode{.RLF} file are merged into \Rcode{featureData} using this key. An additional column named \Rcode{SpikeInInput} is added to record the RNA ``spike in'' input concentrations for the control probes in each codeset. These probes are identified by ``Positive'' and ``Negative'' values in the \Rcode{CodeClass} column, and their concentrations are parsed from the parenthesized label in the \Rcode{GeneName} (128, 32, 8, 2, 0.5, and 0.125 fM for positive control probes and 0 for all negative control probes in the mRNA Gene Expression assay). If \Rcode{addEgAnnotions == TRUE}, then \Rcode{featureData} is further annotated with EntrezGene identifiers and HGNC symbols by doing look ups in the \Biocpkg{org.Hs.eg.db} package using the RefSeq accessions indicated in the \Rcode{.RLF}. Note that \Rcode{NA} values will be assigned as the annotations for any accessions not found in \Biocpkg{org.Hs.eg.db}, and the values for other accessions will depend on the specific version of \Biocpkg{org.Hs.eg.db} that you have installed.
 
-The CDR for a given codeset is provided as an Excel file with multiple tabs containing information about the probe design history and the overall order. For the annotation of a codeset, only the ``Design Data'' tab is relevant: it has information such as probe identifiers and target sequences for all probes in the codeset. If the CDR is available, the ``Design Data'' tab can be saved as a comma delimited \Rcode{.csv} file, and the \Rcode{cdrDesignData} argument of \Rfunction{newRccSet()} can be pointed at this file. The function will then add the relevant columns from the file to \Rcode{featureData}. See the \Rfunction{buildCodesetAnnotation()} man page for more details.
+The CDR for a given codeset is provided as an Excel file with multiple tabs containing information about the probe design history and the overall order. For the annotation of a codeset, only the ``Design Data'' tab is relevant: it has information such as probe identifiers and target sequences for all probes in the codeset. If the CDR is available, the ``Design Data'' tab can be saved as a comma delimited \Rcode{.CSV} file, and the \Rcode{cdrDesignData} argument of \Rfunction{newRccSet()} can be pointed at this file. The function will then add the relevant columns from the file to \Rcode{featureData}. See the \Rfunction{buildCodesetAnnotation()} man page for more details.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -184,15 +184,13 @@ For most data sets, we typically use the following approach:
 
 \end{enumerate}
 
-The \Rfunction{preprocRccSet()} function performs all recommended preprocessing steps in one go. It takes an \Rclass{RccSet} and the preprocessing parameters as input, and it returns a new \Rclass{RccSet} with \Rcode{exprs} containing the final result of the preprocessing. Results for intermediate preprocessing steps are included in additional matrices in \Rcode{assayData}, and the settings for each preprocessing step are recorded in correspondingly named elements in the \Rcode{preprocessing} slot of \Rcode{experimentData} (accessible via the \Rcode{preproc()} function provided by \Biocpkg{Biobase}). \textbf{Note:} Most downstream analysis is best performed on a logarithmic scale, so in the output's \Rcode{assayData}, the \Rcode{exprs} matrix is on the log2 scale; all other matrices in \Rcode{assayData} are on the natural (original) scale.
+The \Rfunction{preprocRccSet()} function can be used to perform all recommended preprocessing steps (or any combination of them) in one go. It takes an \Rclass{RccSet} and the preprocessing parameters as input, and it returns a new \Rclass{RccSet} with \Rcode{exprs} containing the final result of the preprocessing. Results for intermediate preprocessing steps are included in additional matrices in \Rcode{assayData}, and the settings for each preprocessing step are recorded in correspondingly named elements in the \Rcode{preprocessing} slot of \Rcode{experimentData} (accessible via the \Rcode{preproc()} function provided by \Biocpkg{Biobase}). \textbf{Note:} Most downstream analysis is best performed on a logarithmic scale, so in the output's \Rcode{assayData}, the \Rcode{exprs} matrix is on the log2 scale; all other matrices in \Rcode{assayData} are on the natural (original) scale.
 
 <<preprocRccSet>>=
-norm_example_rccSet <- preprocRccSet(rccSet = example_rccSet,
-                                                method = "housekeeping")
+norm_example_rccSet <- preprocRccSet(rccSet = example_rccSet, normMethod = "housekeeping")
 
 # Warning message:
-# In contentNorm(srccSet, method = "housekeeping", hk = hk) :
-#   Less than three houskeeping features are defined
+# In .local(rccSet, ...) : Less than three housekeeping features are defined
 
 ls(assayData(norm_example_rccSet))
 preproc(norm_example_rccSet)
@@ -204,10 +202,10 @@ The following subsections further describe each individual preprocessing step.
 
 The positive spike-in RNA hybridization controls for each lane may be used to estimate the overall efficiency of hybridization and recovery for each lane. To do so, a lane-specific summary (e.g., sum or, equivalently, average) of positive control counts is first calculated. The average of these per-lane values is then used as the target, and all counts for each lane are then scaled so that all lane-specific positive control summaries match the target.
 
-The \Rfunction{posCtrlNorm()} function performs positive control normalization. You can choose either mean, median or sum (the default) as the summary of positive control counts. NanoString\textsuperscript{\textregistered}\ advises caution with interpreting results of samples with positive control scaling factors outside the range of 0.3 to 3 since values outside this range may indicate significant under-performance of the respective lanes. A plot highlighting any outliers is provided in the QC report (see the \textbf{Quality control of NanoString\textsuperscript{\textregistered}\ expression data} section below), and \Rfunction{posCtrlNorm()} records the positive control scaling factors in a column named \Rcode{PosFactor} in the output's \Rcode{phenoData} for additional inspection.
+The \Rfunction{posCtrlNorm()} function performs positive control normalization. You can choose mean, median, or sum (the default) as the summary of positive control counts. NanoString\textsuperscript{\textregistered}\ advises caution with interpreting results of samples with positive control scaling factors outside the range of 0.3 to 3 since values outside this range may indicate significant under-performance of the respective lanes. A plot highlighting any outliers is provided in the QC report (see the \textbf{Quality control of NanoString\textsuperscript{\textregistered}\ expression data} section below), and \Rfunction{posCtrlNorm()} records the positive control scaling factors in a column named \Rcode{PosFactor} in the output's \Rcode{phenoData} for additional inspection.
 
 <<posCtrlNorm>>=
-adj_example_rccSet <- posCtrlNorm(example_rccSet, metric="sum")
+adj_example_rccSet <- posCtrlNorm(example_rccSet, summaryFunction="sum")
 ls(assayData(adj_example_rccSet))
 preproc(adj_example_rccSet)
 head(pData(adj_example_rccSet)$PosFactor)
@@ -231,20 +229,19 @@ A few examples are shown below using the \Rfunction{getBackground()} function. T
 
 <<getBackground>>=
 # Get background based on median signal for each probe in blank measurements:
-bg1 <- getBackground(adj_example_rccSet, reference="blank", metric="median")
+bg1 <- getBackground(adj_example_rccSet, bgReference="blanks", summaryFunction="median")
 
 # ...based on mean of negative controls:
-bg2 <- getBackground(adj_example_rccSet, reference="Negative", metric="mean")
+bg2 <- getBackground(adj_example_rccSet, bgReference="negatives", summaryFunction="mean")
 
 # ...using the same implementation as in the nSolver software:
-bg3 <- getBackground(adj_example_rccSet, reference="both", stringency=1)
+bg3 <- getBackground(adj_example_rccSet, bgReference="both", stringency=1)
 @ 
 
-Background signal can then be subtracted from the data by calling \Rfunction{subtractBackground()}. Its \Rcode{bgEstimates} argument takes a background estimates matrix as obtained above, and its \Rcode{description} argument gets added to the \Rcode{preproc()} list of the returned \Rclass{RccSet}.
+Background signal can then be subtracted from the data by calling \Rfunction{subtractBackground()} on the background estimates matrix as obtained above.
 
 <<subtractBackground>>=
-bgcorr_example_rccSet <- subtractBackground(adj_example_rccSet, bgEstimates=bg1,
-    description="Background estimates using only blank samples")
+bgcorr_example_rccSet <- subtractBackground(adj_example_rccSet, bgEstimates=bg1)
 ls(assayData(bgcorr_example_rccSet))
 preproc(bgcorr_example_rccSet)
 @
@@ -263,22 +260,17 @@ preproc(bgcorr_example_rccSet)
 
 Median normalization is only recommended if a large number of genes are assayed in the experiment (NanoString\textsuperscript{\textregistered}\ recommends >300 probes) and most of them are not expected to change dramatically across conditions. Note that in this setting, other non-linear normalization techniques traditionally applied to microarray or RNA-seq data --- e.g., variance stabilizing transforms or quantile normalization --- may also be appropriate. (These are not currently implemented in \Rpackage{NanoStringQCPro}, but relevant code in other Bioconductor packages can be applied directly to the matrices in \Rcode{assayData}.)
 
-Housekeeping normalization is recommended if a reasonable number of low-variance features can be identified for the experiment. As in PCR experiments, the housekeeping genes should be carefully evaluated as part of the codeset design process. NanoString\textsuperscript{\textregistered}\ recommends using at least 3 housekeeping features, and ideally even more. If housekeeping normalization is selected, the normalization function will by default use the panel-specified housekeeping features (i.e., those whose \Rcode{CodeClass} is recorded as ``\Rcode{Housekeeping}'' in the \Rcode{.RCC} and \Rcode{.RLF} files), but these can be overridden by passing in a different list of feature identifiers or gene symbols. The \Rclass{RccSet} output by the normalization function will have a \Rcode{featureData} column named `\Rcode{is.housekeeping}' that indicates which features were used for the normalization.
+Housekeeping normalization is recommended if a reasonable number of low-variance features can be identified for the experiment. As in PCR experiments, the housekeeping genes should be carefully evaluated as part of the codeset design process. NanoString\textsuperscript{\textregistered}\ recommends using at least 3 housekeeping features, and ideally even more. If housekeeping normalization is selected, the normalization function will by default use the panel-specified housekeeping features (i.e., those whose \Rcode{CodeClass} is recorded as ``\Rcode{Housekeeping}'' in the \Rcode{.RCC} and \Rcode{.RLF} files), but these can be overridden by passing in a different list of feature identifiers or gene symbols. The \Rclass{RccSet} output by the normalization function will have a \Rcode{featureData} column named `\Rcode{Housekeeping}' that indicates which features were used for the normalization.
 
 \textbf{Note:} Final normalized data are on the log2 scale, unlike all other matrices in \Rcode{assayData}.
 
 <<contentNorm>>=
-gmnorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, 
-                                              method="median")
-
-# The data will be normalized by the median of all features.
-
-hknorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, 
-                                              method="housekeeping")
+gmnorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, method="median")
+hknorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, method="housekeeping")
 
 # Warning message:
 # In contentNorm(srccSet, method = "housekeeping", hk = hk) :
-#   Less than three houskeeping features are defined
+#   Less than three housekeeping features are defined
 @
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -304,40 +296,9 @@ The report includes detailed descriptions of the different quality control steps
 
 \item \Rcode{SampleFlags.txt}: a tab-delimited file listing all samples along with their sample identifiers and sample types. Three \Rcode{TRUE}/\Rcode{FALSE} columns specify QC flags for each sample: one flag based on technical assay run information (\Rcode{TechnicalFlags}), one based on QC steps using signals obtained for positive and negative controls (\Rcode{ControlFlags}), and one based on QC steps using signals obtained for endogenous genes (\Rcode{CountFlags}).
 
-\item \Rcode{HousekeepingGeneStats.txt}: a tab-delimited file providing some metrics on the housekeeping genes. For each gene, values are provided for the variance, inter-quartile range (IQR), median expression, and correlation (cor) with all other housekeeping genes across all samples. (Note that this file will only be generated if housekeeping genes are indicated in the input via \Rcode{CodeClass} ``\Rcode{Housekeeping}'' or if housekeeping normalization has been evinced by the \Rcode{featureData} \Rcode{is.housekeeping} column.)
+\item \Rcode{HousekeepingGeneStats.txt}: a tab-delimited file providing some metrics on the housekeeping genes. For each gene, values are provided for the variance, inter-quartile range (IQR), median expression, and correlation (cor) with all other housekeeping genes across all samples. (Note that this file will only be generated if housekeeping genes are indicated in the input via \Rcode{CodeClass} ``\Rcode{Housekeeping}'' or if housekeeping normalization has been evinced by the \Rcode{featureData} \Rcode{Housekeeping} column.)
 
 \end{itemize}
-
-
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% %
-% %   Gene expression analysis
-% %
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
-% \section{Gene expression analysis}
-% 
-% \subsection{Differential gene expression}
-% 
-% Our current preliminary recommendations are to use either t-tests or limma to assess differential gene expression using NanoString\textsuperscript{\textregistered}\ gene expression data. For example:
-% 
-% <<diff.expression, eval=FALSE>>=
-% require(genefilter)
-% group_factor <- rep(NA, nrow(pData(bg_example_rccSet)))
-% group_factor[grep("stim", pData(bg_example_rccSet)$SampleType)] <- "stim"
-% group_factor[grep("unstim", pData(bg_example_rccSet)$SampleType)] <- "unstim"
-% group_factor <- as.factor(group_factor)
-% test <- rowttests(exprs(norm_example_rccSet), fac=group_factor)
-% test$adj.p.val <- p.adjust(test$p.value, method="BH")
-% head(test, n=20)
-% @
-% 
-% 
-% \subsection{Gene expression correlations}
-% 
-% \textcolor{red}{TODO}
-% 
-% \textbf{Caution:} Low-abundance genes seem highly correlated after RNA content normalization (but not before).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -354,7 +315,7 @@ The package comes with the following example files corresponding to the example 
 
 \item \Rcode{extdata/RCC} contains \Rcode{.RCC} files as they would be produced by the nCounter\textsuperscript{\textregistered}\ instrument.
 
-\item \Rcode{extdata/nSolver/RCC\_collector\_tool\_export.csv} contains a \Rcode{.csv} file as would be generated by the RCC Collector Tool Format Export feature of the NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software. (This file contains the same data as the \Rcode{.RCC} files.)
+\item \Rcode{extdata/nSolver/RCC\_collector\_tool\_export.csv} contains a \Rcode{.CSV} file as would be generated by the RCC Collector Tool Format Export feature of the NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software. (This file contains the same data as the \Rcode{.RCC} files.)
 
 \item \Rcode{extdata/RLF} has the \Rcode{.RLF} annotation corresponding to the codeset used in the example.
 

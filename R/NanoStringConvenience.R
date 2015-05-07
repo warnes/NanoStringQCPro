@@ -4,11 +4,10 @@
 ##' @title          Read an .RCC file
 ##' @description    Parse an .RCC file into a list with each part of the file (Header,
 ##'                 Sample_Attributes, Lane_Attributes, Code_Summary, etc) stored as a vector
-##'                 or data frame. (Note: for reading a set of .RCC files together, use
-##'                 readRccBatch().)
+##'                 or data frame.
 ##'
-##' @param  rccPath             Path to the .RCC file.
-##' @param  removeSpikeInLabels Logical. If TRUE (the default), RNA ``spike-in'' input labels (if any)
+##' @param  rcc                 Path to the .RCC file.
+##' @param  removeSpikeInLabels Logical. If TRUE (the default), RNA \dQuote{spike-in} input labels (if any)
 ##'                             in the GeneName for positive and negative control probes will be removed.
 ##'
 ##' @return
@@ -19,15 +18,15 @@
 ##' @export
 ##'
 ##' @examples
-##' rccPath <- system.file("extdata", "RCC", "20140604_C1-unstim_C1-unstim_01.RCC", package="NanoStringQCPro")
-##' rcc <- readRcc(rccPath)
+##' rcc <- system.file("extdata", "RCC", "20140604_C1-unstim_C1-unstim_01.RCC", package="NanoStringQCPro")
+##' rcc.ls <- readRcc(rcc)
 ##'
 ##' @author Robert Ziman
 ##'
-readRcc <- function(rccPath, removeSpikeInLabels=TRUE)
+readRcc <- function(rcc, removeSpikeInLabels=TRUE)
 {
 	suppressWarnings(
-		lines <- readLines(rccPath)
+		lines <- readLines(rcc)
 	)
 	lines.df <-
 	    data.frame(stringsAsFactors=FALSE,
@@ -57,16 +56,16 @@ readRcc <- function(rccPath, removeSpikeInLabels=TRUE)
 	ID_lnum <- grep("^ID,", lines.df$line)
 	lines.df$line[ID_lnum] <- paste0( sub("_Attributes", "", lines.df$tag[ID_lnum]), lines.df$line[ID_lnum] )
 
-	rcc <- list()
+	rcc.ls <- list()
 
-	rcc$File_path <- rccPath
+	rcc.ls$File_path <- rcc
 
 	for (attr_tag in c("Header", "Sample_Attributes", "Lane_Attributes")) {
 		attr_lnum <- which(lines.df$tag == attr_tag)
 		attr.strsplit <- strsplit(lines.df$line[attr_lnum], ",")
 		attr.v <- vapply(attr.strsplit, function(x) {if (!is.na(x[2])) {x[2]} else {""}}, character(1))
 		names(attr.v) <- vapply(attr.strsplit, function(x) {x[1]}, character(1))
-		rcc[[attr_tag]] <- attr.v
+		rcc.ls[[attr_tag]] <- attr.v
 	}
 
 	Code_Summary_lnum.all <- which(lines.df$tag == "Code_Summary")
@@ -75,13 +74,13 @@ readRcc <- function(rccPath, removeSpikeInLabels=TRUE)
 
 	if (lines.df$line[Code_Summary_lnum.header] != "CodeClass,Name,Accession,Count") {
 	    stop(
-	        paste0("Unrecognized header line for Code_Summary section of \"", rccPath, "\"",
+	        paste0("Unrecognized header line for Code_Summary section of \"", rcc.ls, "\"",
 	            " (expected \"CodeClass,Name,Accession,Count\" but got \"", lines.df$line[Code_Summary_lnum.header], "\")")
 	    )
 	}
 
 	Code_Summary_fields <- strsplit(lines.df$line[Code_Summary_lnum.body], ",")
-	rcc$Code_Summary <- data.frame(stringsAsFactors=FALSE
+	rcc.ls$Code_Summary <- data.frame(stringsAsFactors=FALSE
 		,CodeClass   = vapply(Code_Summary_fields, function(x) {x[1]}, character(1))
 		,Name        = vapply(Code_Summary_fields, function(x) {x[2]}, character(1))
 		,Accession   = vapply(Code_Summary_fields, function(x) {x[3]}, character(1))
@@ -90,19 +89,19 @@ readRcc <- function(rccPath, removeSpikeInLabels=TRUE)
 
     if(removeSpikeInLabels)
     {
-        spikein <- getSpikeInInput(CodeClass=rcc$Code_Summary$CodeClass, GeneName=rcc$Code_Summary$Name)
-        rcc$Code_Summary$Name <- spikein$GeneName
+        spikein <- getSpikeInInput(CodeClass=rcc.ls$Code_Summary$CodeClass, GeneName=rcc.ls$Code_Summary$Name)
+        rcc.ls$Code_Summary$Name <- spikein$GeneName
     }
 
-	return(rcc)
+	return(rcc.ls)
 }
 
-##' @title          rccDir.to.pdata_fdata_adata
+##' @title          rccFiles.to.pdata_fdata_adata
 ##' @description    First stage of readRccBatch(): produces a list containing matrices (for pdata and adata) and a data frame (for fdata) that
-##'                 pdata_fdata_adata.to.rccSet() then transforms into a full ExpressionSet (after some further checks and adjustments).
+##'                 pdata_fdata_adata.to.rccSet() then transforms into a full RccSet (after some further checks and adjustments).
 ##'                 See also nSolverCsv.to.pdata_fdata_adata().
 ##'
-##' @param  rccDir  Directory containing .RCC files
+##' @param  rccFiles  Vector of .RCC paths
 ##'
 ##' @return
 ##' A list containing matrices (for pdata and adata) and a data frame (for fdata)
@@ -110,16 +109,14 @@ readRcc <- function(rccPath, removeSpikeInLabels=TRUE)
 ##'
 ##' @author Robert Ziman
 ##'
-rccDir.to.pdata_fdata_adata <- function(rccDir)
+rccFiles.to.pdata_fdata_adata <- function(rccFiles)
 {
-	rccFiles <- list.files(path=rccDir, pattern="*\\.RCC$")
-	if (length(rccFiles) == 0) {
-		stop( paste0("No RCC files found in \"", rccDir, "\"") )
-	}
+    if (missing(rccFiles) || is.null(rccFiles) || length(rccFiles) == 0)
+        stop("rccFiles argument is missing, NULL, or empty")
 
-	rcc_1 <- readRcc( file.path(rccDir, rccFiles[1]) )
+	rcc_1 <- readRcc( rccFiles[1] )
 
-    filename <- rccFiles[1]
+    filename <- basename( rccFiles[1] )
     names(filename) <- "FileName"
 	rcc_1.pdata <- c(filename, rcc_1$Header, rcc_1$Sample_Attributes, rcc_1$Lane_Attributes)
 	rcc_1.fdata <- data.frame(stringsAsFactors=FALSE
@@ -140,9 +137,9 @@ rccDir.to.pdata_fdata_adata <- function(rccDir)
 
 	for (i in 2:length(rccFiles))
 	{
-		rcc <- readRcc( file.path(rccDir, rccFiles[i]) )
+		rcc <- readRcc( rccFiles[i] )
 
-        filename <- rccFiles[i]
+        filename <- basename( rccFiles[i] )
         names(filename) <- "FileName"
 		rcc.pdata <- c(filename, rcc$Header, rcc$Sample_Attributes, rcc$Lane_Attributes)
 		rcc.fdata <- data.frame(stringsAsFactors=FALSE
@@ -154,14 +151,14 @@ rccDir.to.pdata_fdata_adata <- function(rccDir)
 
 		if (!identical(names(rcc.pdata), names(rcc_1.pdata))) {
 			stop(
-				paste0("The attribute labels in the Header, Sample_Attributes, and Lane_Attributes sections of \"", rccFiles[i],
-					"\" don't exactly match those in the other RCC files parsed so far in the given directory (\"", rccDir, "\"")
+				paste0("The attribute labels in the Header, Sample_Attributes, and Lane_Attributes sections of \"", filename,
+					"\" don't exactly match those in the other RCC files parsed so far")
 			)
 		}
 		if (!identical(rcc.fdata, rcc_1.fdata)) {
 			stop(
-				paste0("Values in the key cols (i.e. CodeClass, Name, and Accession) in the Code_Summary section of \"", rccFiles[i],
-					"\" don't exactly match those in the other RCC files parsed so far in the given directory (\"", rccDir, "\"")
+				paste0("Values in the key cols (i.e. CodeClass, Name, and Accession) in the Code_Summary section of \"", filename,
+					"\" don't exactly match those in the other RCC files parsed so far")
 			)
 		}
 
@@ -175,11 +172,11 @@ rccDir.to.pdata_fdata_adata <- function(rccDir)
 ##' @title          nSolverCsv.to.pdata_fdata_fdata
 ##' @description    First stage of readRccCollectorToolExport(): produces a list containing
 ##'                 matrices (for pdata and adata) and a data frame (for fdata) that
-##'                 pdata_fdata_adata.to.rccSet then transforms into a full ExpressionSet
+##'                 pdata_fdata_adata.to.rccSet then transforms into a full RccSet
 ##'                 (after some further checks and adjustments). Not intended for
-##'                 external use; see also rccDir.to.pdata_fdata_adata().
+##'                 external use; see also rccFiles.to.pdata_fdata_adata().
 ##'
-##' @param  rccCollectorToolExport  Path to the nSolver RCC Collector Tool .csv export.
+##' @param  rccCollectorToolExport  Path to the nSolver RCC Collector Tool .CSV export.
 ##'
 ##' @return
 ##' A list containing matrices (for pdata and adata) and a data frame (for fdata)
@@ -287,7 +284,7 @@ nSolverCsv.to.pdata_fdata_adata <- function(rccCollectorToolExport)
 ##' Second stage of readRccBatch()/readRccCollectorToolExport() -- not intended for external use.
 ##'
 ##' @param  pdata_fdata_adata   List containing the pdata, fdata, and adata returned by
-##'                             rccDir.to.pdata_fdata_adata() or nSolverCsv.to.pdata_fdata_adata().
+##'                             rccFiles.to.pdata_fdata_adata() or nSolverCsv.to.pdata_fdata_adata().
 ##'
 ##' @return
 ##'
@@ -346,7 +343,7 @@ pdata_fdata_adata.to.rccSet <- function(pdata_fdata_adata)
 }
 
 ##' @title
-##' Read a directory of .RCC files to produce an RccSet
+##' Read RCC files
 ##'
 ##' @description
 ##'
@@ -354,24 +351,18 @@ pdata_fdata_adata.to.rccSet <- function(pdata_fdata_adata)
 ##' RccSet object. Note: this function is not intended for external use. For
 ##' that, see newRccSet().
 ##'
-##' @param  rccDir  Directory containing the .RCC files.
+##' @param  rccFiles  Vector of .RCC file paths
 ##'
 ##' @return
 ##'
 ##' An RccSet object that has raw counts in assayData, probe information
 ##' in fData, and sample annotation in pData.
 ##'
-##' @export
-##'
-##' @examples
-##' rccDir <- system.file("extdata", "RCC", package="NanoStringQCPro")
-##' rccSet <- readRccBatch(rccDir)
-##'
 ##' @author Robert Ziman
 ##'
-readRccBatch <- function(rccDir)
+readRccBatch <- function(rccFiles)
 {
-    pdata_fdata_adata <- rccDir.to.pdata_fdata_adata(rccDir)
+    pdata_fdata_adata <- rccFiles.to.pdata_fdata_adata(rccFiles)
     rccSet <- pdata_fdata_adata.to.rccSet(pdata_fdata_adata)
     return(rccSet)
 }
@@ -381,23 +372,17 @@ readRccBatch <- function(rccDir)
 ##'
 ##' @description
 ##' Reads the contents of a .CSV file generated from the RCC Collector Tool Export feature
-##' of NanoString's nSolver Analysis software into a new NanoString ExpressionSet object.
+##' of NanoString's nSolver Analysis software into a new RccSet object.
 ##' (Note: this function is not intended for external use. For that, see newRccSet().)
 ##'
 ##' @details
 ##' See 'details' in the readRccBatch() help page.
 ##'
-##' @param  file    Path to the NSolver .csv file to be read.
+##' @param  file    Path to the NSolver .CSV file to be read.
 ##'
 ##' @return
-##' A NanoString ExpressionSet object that has count data in exprs, probe
+##' An RccSet object that has count data in exprs, probe
 ##' information in fData and sample annotation in pData.
-##'
-##' @export
-##'
-##' @examples
-##' csvPath <- system.file("extdata", "nSolver", "RCC_collector_tool_export.csv", package="NanoStringQCPro")
-##' rccSet <- readRccCollectorToolExport(csvPath)
 ##'
 ##' @author Dorothee Nickles, Thomas Sandmann
 ##'
@@ -411,7 +396,7 @@ readRccCollectorToolExport <- function(file)
     #options(stringsAsFactors = stringsAsFactors.prev)
 
     if(!validObject(rccSet)) {
-        stop( paste0("validObject() returns FALSE on rccSet generated from NSolver csv file \"", file, "\"") )
+        stop( paste0("validObject() returns FALSE on rccSet generated from NSolver .CSV file \"", file, "\"") )
     }
 
     return(rccSet)
@@ -421,7 +406,7 @@ readRccCollectorToolExport <- function(file)
 ##' getSpikeInInput
 ##'
 ##' @description
-##' Gets the RNA ``spike-in'' input levels for positive and negative control probes from the label in their GeneName.
+##' Gets the RNA \dQuote{spike-in} input levels for positive and negative control probes from the label in their GeneName.
 ##' Note that this is a helper function for readRlf() and elsewhere and is not intended for external use.
 ##'
 ##' @param CodeClass        Character vector with code classes for each probe.
@@ -432,9 +417,6 @@ readRccCollectorToolExport <- function(file)
 ##' A data frame with the input CodeClass and GeneName but where the latter has been split into
 ##' two columns: one showing the GeneName for each probe with spike-in input labels removed
 ##' -- and another with the spike-in input levels.
-##'
-##' @note
-##' "concn" abbreviation taken from http://www.cas.org/content/cas-standard-abbreviations.
 ##'
 ##' @author Robert Ziman
 ##
@@ -469,12 +451,12 @@ getSpikeInInput <- function(CodeClass, GeneName, nonCtrlProbeVal=NA)
 ##' Read RLF file
 ##'
 ##' @description
-##' Reads the contents of an .RLF file into a data frame. RNA ``spike-in'' concentrations recorded in the
+##' Reads the contents of an .RLF file into a data frame. RNA \dQuote{spike-in} concentrations recorded in the
 ##' GeneName for positive and negative control probes are stripped and stored in a separate
 ##' column in the output. An error will be generated for any recognized deviations from the
 ##' expected file format.
 ##'
-##' @param  rlfPath     Path to the .RLF file
+##' @param  rlf     Path to the .RLF file
 ##'
 ##' @return
 ##' A data frame containing the contents of the .RLF file.
@@ -482,21 +464,19 @@ getSpikeInInput <- function(CodeClass, GeneName, nonCtrlProbeVal=NA)
 ##' @export
 ##'
 ##' @examples
-##' rlfPath <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
-##' rlf <- readRlf(rlfPath)
+##' rlf <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
+##' rlf.df <- readRlf(rlf)
 ##'
 ##' @author Robert Ziman
 ##'
-readRlf <- function(rlfPath)
+readRlf <- function(rlf)
 {
-    if (!file.exists(rlfPath)) {
-        stop(
-            paste0("rlfPath \"", rlfPath, "\" not found")
-        )
+    if (!file.exists(rlf)) {
+        stop(sprintf("rlf \"%s\" not found", rlf))
     }
 
 	suppressWarnings(
-		all.lines <- readLines(rlfPath)
+		all.lines <- readLines(rlf)
                         #
                         # N.B. readLines() appears to automatically strip any trailing carriage returns (^M, 0xD)
                         # from files coming from Windows, etc.
@@ -528,56 +508,48 @@ readRlf <- function(rlfPath)
 	content.lines <- c(content.lines.header, content.lines.records)
 	
 	tc <- textConnection(content.lines)
-	rlf <- read.csv(tc, header=TRUE, as.is=TRUE)
+	rlf.df <- read.csv(tc, header=TRUE, as.is=TRUE)
 
     classnames.lines <- all.lines[ grepl("^ClassName", all.lines) ]
     classnames.lines.strsplit <- strsplit(classnames.lines, "=")
     classnames        <- vapply(classnames.lines.strsplit, function (x) {x[2]}, character(1))
     names(classnames) <- vapply(classnames.lines.strsplit, function (x) {x[1]}, character(1))
 
-    rlf$ClassNameID <- paste0("ClassName", rlf$Classification)
-    rlf$ClassName <- as.character( classnames[rlf$ClassNameID] )
-    rlf$Classification <- NULL
-    rlf$ClassNameID <- NULL
+    rlf.df$ClassNameID <- paste0("ClassName", rlf.df$Classification)
+    rlf.df$ClassName <- as.character( classnames[rlf.df$ClassNameID] )
+    rlf.df$Classification <- NULL
+    rlf.df$ClassNameID <- NULL
 
-    rlf <- rlf[!(rlf$ClassName == "Reserved"),]     # TODO: check if this will ever be an issue
-    rlf <- rlf[!(rlf$ClassName == "Binding"),]
-    rlf <- rlf[!(rlf$ClassName == "Purification"),]
+    #rlf.df <- rlf.df[ !(rlf.df$ClassName == "Reserved"), ]     # TODO: check if this will ever be an issue
+    #rlf.df <- rlf.df[ !(rlf.df$ClassName == "Binding"), ]
+    #rlf.df <- rlf.df[ !(rlf.df$ClassName == "Purification"), ]
+    rlf.df <- rlf.df[ !(rlf.df$ClassName %in% c("Reserved", "Binding", "Purification")), ]
 
-    spikein <- getSpikeInInput(CodeClass=rlf$ClassName, GeneName=rlf$GeneName, nonCtrlProbeVal=0)
-    rlf$GeneName <- spikein$GeneName
-    rlf$SpikeInInput <- spikein$SpikeInInput
+    spikein <- getSpikeInInput(CodeClass=rlf.df$ClassName, GeneName=rlf.df$GeneName, nonCtrlProbeVal=0)
+    rlf.df$GeneName <- spikein$GeneName
+    rlf.df$SpikeInInput <- spikein$SpikeInInput
 
-    ctrls <- (rlf$ClassName %in% c("Positive", "Negative"))
-    if (any(is.na(rlf$SpikeInInput[ ctrls ]))) {
+    ctrls <- (rlf.df$ClassName %in% c("Positive", "Negative"))
+    if (any(is.na(rlf.df$SpikeInInput[ ctrls ]))) {
         stop("Missing or malformed spike-in labels in GeneName for some control probes")
     }
 
-    if (any(is.na(rlf$Accession))) {
+    if (any(is.na(rlf.df$Accession))) {
         stop("Missing accessions for some entries")
     }
-    #if (any(duplicated(rlf$GeneName)))
-        #
-        # GeneName duplication check: appeared in original readRccCollectorToolExport but no
-        # longer needed since the feature names are now the concatenation of
-        # CodeClass, GeneName, and Accession. -RZ 2015-01
-        #
 
-    #colnames(rlf)[ colnames(rlf) == "Accession" ] <- "Accession_RLF"
-    colnames(rlf)[ colnames(rlf) == "ClassName" ] <- "CodeClass"
-    #colnames(rlf)[ colnames(rlf) == "Comments" ] <- "Comments_RLF"
-    #colnames(rlf)[ colnames(rlf) == "GeneName" ] <- "GeneName_RLF"
+    colnames(rlf.df)[ colnames(rlf.df) == "ClassName" ] <- "CodeClass"
 
-    return(rlf)
+    return(rlf.df)
 }
 
-##' @title          Read .csv containing CDR 'Design Data' extract
+##' @title          Read .CSV containing CDR 'Design Data' extract
 ##' @description    Return a data frame containing the contents of the 'Design Data' tab
-##'                 extracted from a CDR spreadsheet. The extract, a .csv file, must be
+##'                 extracted from a CDR spreadsheet. The extract, a .CSV file, must be
 ##'                 manually prepared in advance (see 'details' section in the
 ##'                 buildCodesetAnnotation() help page for more info).
 ##'
-##' @param  cdrDesignData    Path to the .csv file containing the content extracted from the CDR's 'Design Data' tab
+##' @param  cdrDesignData    Path to the .CSV file containing the content extracted from the CDR's 'Design Data' tab
 ##'
 ##' @return
 ##' A data frame containing the contents of the CDR 'Design Data' tab.
@@ -594,7 +566,7 @@ readCdrDesignData <- function(cdrDesignData)
 {
     if (!file.exists(cdrDesignData)) {
         stop(
-            paste0("CDR Design Data csv \"", cdrDesignData, "\" not found")
+            paste0("CDR Design Data .CSV \"", cdrDesignData, "\" not found")
         )
     }
 
@@ -630,10 +602,10 @@ readCdrDesignData <- function(cdrDesignData)
 ##'                 "Design Data" tab of the CDR spreadsheet) with gene annotation in the
 ##'                 org.Hs.eg.db package. 
 ##'
-##' @param  rlfPath                 Path to the RLF file
-##' @param  cdrDesignData    Path to a manually prepared csv export of the
+##' @param  rlf                     Path to the RLF file
+##' @param  cdrDesignData           Path to a manually prepared .CSV export of the
 ##'                                 "Design Data" tab of the CDR file (optional;
-##'                                 see 'details' sectio below for how the export
+##'                                 see 'details' section below for how the export
 ##'                                 should be prepared)
 ##' @param  removeRedundantCols     Logical. If TRUE, cols in the CDR that are redundant
 ##'                                 with those in the RLF will be omitted from the output.
@@ -649,13 +621,13 @@ readCdrDesignData <- function(cdrDesignData)
 ##' The original NanoString provided .RLF file is expected as input. This
 ##' file is the master (i.e. only probes listed here will be annotated;
 ##' any extra ones in the CDR export will be dropped). If
-##' the CDR "Design Data" .csv is specified, the function expects this .csv
+##' the CDR "Design Data" .CSV is specified, the function expects this .CSV
 ##' file to be generated from the "Design Data" tab of the original NanoString
 ##' provided Excel CDR file. This tab needs to be trimmed by skipping the
 ##' NanoString header and first column containing only integers;
-##' the resulting .csv should contain the actual table (including its header
+##' the resulting .CSV should contain the actual table (including its header
 ##' -- beginning with "Customer Identifier"). The function will match and
-##' join the .RLF and CDR .csv using their "ProbeID" and "NSID" fields, and
+##' join the .RLF and CDR .CSV using their "ProbeID" and "NSID" fields, and
 ##' then it will add gene annotation (EntrezGene ID, HGNC symbol, and
 ##' chromosomal position) by doing lookups in the org.Hs.eg.db package using
 ##' the RefSeq accessions from the RLF.
@@ -667,32 +639,32 @@ readCdrDesignData <- function(cdrDesignData)
 ##' @export
 ##'
 ##' @examples
-##'	rlfPath <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
+##'	rlf <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
 ##'	cdrDesignData <- system.file("extdata", "CDR", "CDR-DesignData.csv", package="NanoStringQCPro")
-##'	annot <- buildCodesetAnnotation(rlfPath, cdrDesignData)
+##'	annot <- buildCodesetAnnotation(rlf, cdrDesignData)
 ##'
 ##' @author Dorothee Nickles, Robert Ziman
 ##'
-buildCodesetAnnotation <- function(rlfPath=NULL,
+buildCodesetAnnotation <- function(rlf=NULL,
                                    cdrDesignData=NULL,
                                    removeRedundantCols=TRUE,
                                    addEgAnnotations=FALSE)
 {
-    if (is.null(rlfPath)) {
+    if (is.null(rlf)) {
         stop("RLF not specified")
     }
-    rlf <- readRlf(rlfPath)
+    rlf.df <- readRlf(rlf)
 
     if (!is.null(cdrDesignData))
     {
         cdr <- readCdrDesignData(cdrDesignData)
 
-        misProbes <- summary(cdr$NSID %in% rlf$ProbeID)["FALSE"]
+        misProbes <- summary(cdr$NSID %in% rlf.df$ProbeID)["FALSE"]
         if (!is.na(misProbes)) {
             warning(sprintf("%s probe(s) in the CDR have no entry in the RLF. These will be excluded from annotation.", misProbes))
         }
     
-        annot <- merge(rlf, cdr, by.x="ProbeID", by.y="NSID", all.x=TRUE, suffixes=c("", "_CDR"))
+        annot <- merge(rlf.df, cdr, by.x="ProbeID", by.y="NSID", all.x=TRUE, suffixes=c("", "_CDR"))
 
         tmp <- is.na(annot$PN.CP.RP.)
         annot$PN.CP.RP.[tmp] <- annot$ProbeID[tmp]
@@ -707,7 +679,7 @@ buildCodesetAnnotation <- function(rlfPath=NULL,
         }
     }
     else {
-        annot <- rlf
+        annot <- rlf.df
     }
 
     if (addEgAnnotations == TRUE)
@@ -766,14 +738,20 @@ buildCodesetAnnotation <- function(rlfPath=NULL,
     return(annot)
 }
 
-##' @title          Add NanoString codeset annotation to a NanoString ExpressionSet object
-##' @description    Returns a copy of the input ExpressionSet where the codeset annotation
+
+setGeneric( "addCodesetAnnotation", function( rccSet, ... ) standardGeneric( "addCodesetAnnotation" ) )
+
+##' @rdname addCodesetAnnotation
+##' @aliases addCodesetAnnotation
+##'
+##' @title          Add NanoString codeset annotation to an RccSet
+##' @description    Returns a copy of the input RccSet where the codeset annotation
 ##'                 has been merged into its fData slot. The merge key for each is a string
 ##'                 formed from the concatenation of their CodeClass, GeneName, and
 ##'                 Accession columns ("<CodeClass>_<GeneName>_<Accession>"). For creating
 ##'                 the codeset annotation object, see buildCodesetAnnotation().
 ##'
-##' @param  rccSet          NanoString ExpressionSet object.
+##' @param  rccSet          An RccSet object.
 ##' @param  annot           Data frame containing the codeset annotation.
 ##' @param  reorder         Logical indicating whether the probes should be reordered
 ##'                         according to their barcodes (this can help in identifying
@@ -781,105 +759,112 @@ buildCodesetAnnotation <- function(rlfPath=NULL,
 ##' @param  showWarnings    Logical indicating whether or not warnings should be shown, if any.
 ##'
 ##' @return
-##' A copy of the input ExpressionSet where the codeset annotation has been
+##' A copy of the input RccSet where the codeset annotation has been
 ##' merged into its fData slot.
 ##'
 ##' @export
 ##'
 ##' @examples
 ##' rccDir <- system.file("extdata", "RCC", package="NanoStringQCPro")
-##' rccSet <- readRccBatch(rccDir)
-##' rlfPath <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
-##' annot <- buildCodesetAnnotation(rlfPath)
+##' rccSet <- newRccSet(rccFiles = dir(rccDir, full.names=TRUE))
+##' rlf <- system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
+##' annot <- buildCodesetAnnotation(rlf)
 ##' rccSet.annotated <- addCodesetAnnotation(rccSet, annot)
 ##'
 ##' @author Dorothee Nickles, Robert Ziman
 ##'
-addCodesetAnnotation <- function(rccSet, annot, reorder=TRUE, showWarnings=TRUE)
-{
-    fdata <- fData(rccSet)
+setMethod(
+    "addCodesetAnnotation",
+    "RccSet",
+    function( rccSet, annot, reorder=TRUE, showWarnings=TRUE )
+    {
+        fdata <- fData(rccSet)
 
-    CodeClass <- NULL   # prevent BiocCheck warning
-    GeneName <- NULL
-    Accession <- NULL
-    fdata$mergekey <- with(fdata, paste0(CodeClass, "_", GeneName, "_", Accession))
-    annot$mergekey <- with(annot, paste0(CodeClass, "_", GeneName, "_", Accession))
+        CodeClass <- NULL   # prevent BiocCheck warning
+        GeneName <- NULL
+        Accession <- NULL
+        fdata$mergekey <- with(fdata, paste0(CodeClass, "_", GeneName, "_", Accession))
+        annot$mergekey <- with(annot, paste0(CodeClass, "_", GeneName, "_", Accession))
 
-    annot$mergeflag <- rep(TRUE, nrow(annot))
+        annot$mergeflag <- rep(TRUE, nrow(annot))
 
-    fdata.annot <- merge(
-        fdata
-        ,annot
-        ,by.x="mergekey"
-        ,by.y="mergekey"
-        ,all.x=TRUE
-        ,suffixes=c("", "_codesetAnnot")
-	)
+        fdata.annot <- merge(
+            fdata
+            ,annot
+            ,by.x="mergekey"
+            ,by.y="mergekey"
+            ,all.x=TRUE
+            ,suffixes=c("", "_codesetAnnot")
+        )
 
-    fdata.annot$CodeClass_codesetAnnot <- NULL
-    fdata.annot$Accession_codesetAnnot <- NULL
-    fdata.annot$GeneName_codesetAnnot <- NULL
+        fdata.annot$CodeClass_codesetAnnot <- NULL
+        fdata.annot$Accession_codesetAnnot <- NULL
+        fdata.annot$GeneName_codesetAnnot <- NULL
 
-    if (showWarnings && any(grepl('_codesetAnnot$', colnames(fdata.annot))))
-        {
-            warning("The names of some columns in the codeset annotation were identical to those already in the rccSet's fData. To distinguish them from the fData columns in the input, the output's fData has these columns suffixed with \"_codesetAnnot\".")
+        if (showWarnings && any(grepl('_codesetAnnot$', colnames(fdata.annot))))
+            {
+                warning("The names of some columns in the codeset annotation were identical to those already in the rccSet's fData. To distinguish them from the fData columns in the input, the output's fData has these columns suffixed with \"_codesetAnnot\".")
+            }
+
+        # merge() messes up the order of the rows -- put them back as they were!
+        fdata.annot <- fdata.annot[ match(fdata$mergekey, fdata.annot$mergekey), ]
+
+        # Error out if any of the features didn't have a matching entry in annot. This should
+        # hopefully take care of anything incomplete, mistaken, or unusual in the RLF.
+        mergeflag_NA <- which(is.na(fdata.annot$mergeflag))
+        if (length(mergeflag_NA) > 0)
+            {
+                stop(
+                    paste0("could not find annotations for some features ",
+                           ifelse(length(mergeflag_NA) <= 3, "", "(only the first few shown here)"),
+                           ": ", paste(collapse=", ", fdata.annot$mergekey[ head(mergeflag_NA, n=3) ]))
+                    )
+            }
+        fdata.annot$mergeflag <- NULL
+
+        fdata.annot$mergekey <- NULL
+        rownames(fdata.annot) <- rownames(fdata)
+
+        rccSet.annot <- copyRccSet(rccSet) # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
+        fData(rccSet.annot) <- fdata.annot
+
+        if (reorder == TRUE) {
+            if (is.null(fData(rccSet.annot)$BarCode)) {
+                stop("reorder == TRUE but featureData BarCode column is missing")
+            }
+            rccSet.annot <- rccSet.annot[order(fData(rccSet.annot)$BarCode),]
+            rccSet.annot <- rccSet.annot[order(fData(rccSet.annot)$CodeClass),]
         }
 
-    # merge() messes up the order of the rows -- put them back as they were!
-    fdata.annot <- fdata.annot[ match(fdata$mergekey, fdata.annot$mergekey), ]
+        return(rccSet.annot)
+    }
+    )
 
-    # Error out if any of the features didn't have a matching entry in annot. This should
-    # hopefully take care of anything incomplete, mistaken, or unusual in the RLF.
-    mergeflag_NA <- which(is.na(fdata.annot$mergeflag))
-    if (length(mergeflag_NA) > 0)
-        {
-            stop(
-                paste0("could not find annotations for some features ",
-                       ifelse(length(mergeflag_NA) <= 3, "", "(only the first few shown here)"),
-                       ": ", paste(collapse=", ", fdata.annot$mergekey[ head(mergeflag_NA, n=3) ]))
-                )
-        }
-    fdata.annot$mergeflag <- NULL
 
-    fdata.annot$mergekey <- NULL
-    rownames(fdata.annot) <- rownames(fdata)
-
-    rccSet.annot <- copyRccSet(rccSet) # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
-    fData(rccSet.annot) <- fdata.annot
-    if (reorder == TRUE)
-        {
-	    rccSet.annot <- rccSet.annot[order(fData(rccSet.annot)$BarCode),]
-	    rccSet.annot <- rccSet.annot[order(fData(rccSet.annot)$CodeClass),]
-	}
-
-    return(rccSet.annot)
-}
 
 ##' @title
-##' Create NanoString RccSet object
+##' Create a new RccSet object
 ##'
 ##' @description
 ##' 
-##' This is the main wrapper function for generating an ExpressionSet object
-##' from NanoString data. The function takes as input either a directory
-##' containing NanoString .RCC files (with the raw data) or a .CSV file
-##' generated via the RCC Collector Tool Export feature of NanoString's nSolver
-##' Analysis Software; a path to the .RLF file describing the codeset used;
-##' optional paths to additional annotation about the features and samples; and
-##' details about the experiment. It returns an RccSet object.
+##' This is the main wrapper function for generating an RccSet from NanoString
+##' data. The function takes as input a vector of NanoString .RCC files with the
+##' raw data or a .CSV file generated via the RCC Collector Tool Export feature
+##' of NanoString's nSolver Analysis Software, an optional path to the .RLF file
+##' describing the codeset used, optional paths to additional annotation about
+##' the features and samples, and details about the experiment. It returns an
+##' RccSet object.
 ##'
-##' @param  rccDir                  Directory containing the NanoString .RCC files
-##'                                 with the raw count data. All files with the
-##'                                 upper case .RCC extension will be used.
-##' 
-##' @param  rlfPath                 Path to the NanoString .RLF file describing
-##'                                 the codeset used in generating the .RCCs.
+##' @param  rccFiles                Vector of paths to .RCC files with the raw count data.
 ##' 
 ##' @param  rccCollectorToolExport  Path to a .CSV file generated via the RCC Collector
 ##'                                 Tool Export feature of NanoString's nSolver
 ##'                                 Analysis Software. (Note that this is an alternative
-##'                                 to rccDir, and if both arguments are specified at the
+##'                                 to rccFiles, and if both arguments are specified at the
 ##'                                 same time, the function will throw an error.)
+##'
+##' @param  rlf                     Path to the NanoString .RLF file describing
+##'                                 the codeset used in generating the .RCCs. 
 ##' 
 ##' @param  cdrDesignData           Path to a .CSV extract of the "Design Data"
 ##'                                 tab of a CDR spreadsheet corresponding to the
@@ -890,13 +875,13 @@ addCodesetAnnotation <- function(rccSet, annot, reorder=TRUE, showWarnings=TRUE)
 ##' 
 ##' @param  extraPdata              Vector of paths to files containing additional
 ##'                                 annotation about the samples which will be added
-##'                                 to the phenoData of the output ExpressionSet. All
+##'                                 to the phenoData of the output RccSet. All
 ##'                                 files should be tab-separated and should contain
 ##'                                 a column labelled "FileName" whose values correspond
-##'                                 exactly to the .RCC filenames in the
-##'                                 rccDir or listed in the RCC Collector Tool
-##'                                 Export. More than one such file may be
-##'                                 used. A SampleType column should be present
+##'                                 exactly to the basenames (including .RCC extension)
+##'                                 of the files specified in rccFiles or listed in
+##'                                 the RCC Collector Tool Export. More than one such file
+##'                                 may be used. A SampleType column should be present
 ##'                                 in at most one file.
 ##' 
 ##' @param  blankLabel              Value for the output's phenoData SampleType column
@@ -908,30 +893,35 @@ addCodesetAnnotation <- function(rccSet, annot, reorder=TRUE, showWarnings=TRUE)
 ##' @param  addEgAnnotations        Logical indicating whether or not to add
 ##'                                 EntrezGene annotations from the org.Hs.eg.db
 ##'                                 package.
-##' 
+##'
+##' @param  dropPdataCols           Character vector specifying phenoData columns
+##'                                 to be dropped from the output object (if empty or
+##'                                 NULL, no columns will be dropped).
+##'
+##' @param  dropFdataCols           Character vector specifying featureData columns
+##'                                 to be dropped from the output object (if empty or
+##'                                 NULL, no columns will be dropped).
+##'
 ##' @param  experimentData.name     String passed to the 'name' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.lab      String passed to the 'lab' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.contact  String passed to the 'contact' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.title    String passed to the 'title' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.abstract String passed to the 'abstract' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.url      String passed to the 'url' slot of the
-##'                                 output ExpressionSet's experimentData.
+##'                                 output RccSet's experimentData.
 ##' 
 ##' @param  experimentData.other    List passed to the 'other' slot of the
-##'                                 output ExpressionSet's experimentData.
-##' 
-##' @param  validate                Logical. If TRUE, the output ExpressionSet
-##'                                 will be checked via validRccSet(stopOnError=TRUE).
+##'                                 output RccSet's experimentData.
 ##'
 ##' @return
 ##' 
@@ -957,88 +947,103 @@ addCodesetAnnotation <- function(rccSet, annot, reorder=TRUE, showWarnings=TRUE)
 ##' @export
 ##'
 ##' @examples
+##' rccDir <- system.file("extdata", "RCC", package="NanoStringQCPro")
 ##' rccSet <- newRccSet(
-##'      rccDir = system.file("extdata", "RCC", package="NanoStringQCPro")
-##'     ,rlfPath = system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro")
-##'     ,extraPdata = system.file("extdata", "extraPdata", "SampleType.txt", package="NanoStringQCPro")
-##'     ,blankLabel = "blank"
-##'     ,experimentData.name = "Robert Ziman"
-##'     ,experimentData.lab = "Richard Bourgon"
-##'     ,experimentData.contact = "ziman.robert@@gene.com"
-##'     ,experimentData.title = "NanoStringQCPro example dataset"
-##'     ,experimentData.abstract = "Example data for the NanoStringQCPro package"
+##'     rccFiles = dir(rccDir, full.names=TRUE),
+##'     rlf = system.file("extdata", "RLF", "NQCP_example.rlf", package="NanoStringQCPro"),
+##'     extraPdata = system.file("extdata", "extraPdata", "SampleType.txt", package="NanoStringQCPro"),
+##'     blankLabel = "blank",
+##'     experimentData.name = "Robert Ziman",
+##'     experimentData.lab = "Richard Bourgon",
+##'     experimentData.contact = "ziman.robert@@gene.com",
+##'     experimentData.title = "NanoStringQCPro example dataset",
+##'     experimentData.abstract = "Example data for the NanoStringQCPro package"
 ##' )
 ##'
 ##' @author Robert Ziman
 ##'
-newRccSet <- function(rccDir,
-                      rlfPath,
+newRccSet <- function(rccFiles,
                       rccCollectorToolExport    = NULL,
+                      rlf                       = NULL,
                       cdrDesignData             = NULL,
                       extraPdata                = NULL,
                       blankLabel                = "blank",
                       addEgAnnotations          = FALSE,
+                      dropPdataCols             = c("FileVersion",
+                                                    "SoftwareVersion",
+                                                    "Owner",
+                                                    "SystemAPF",
+                                                   #"FovCount",             # Required in the QC report
+                                                   #"FovCounted",           # Required in the QC report
+                                                    "ScannerID",
+                                                   #"StagePosition",        # Required in the QC report
+                                                   #"BindingDensity",       # Required in the QC report
+                                                   #"CartridgeID",          # See comment by corresponding line in createOrUpdateEpProject() (in NanoStringQCProGNE)
+                                                    "CartridgeBarcode"
+                                                    ),
+                      dropFdataCols             = c("CodeClass_codesetAnnot",
+                                                    "Accession_codesetAnnot",
+                                                    "GeneName_codesetAnnot",
+                                                    "Accession_CDR"
+                                                    ),
                       experimentData.name       = "",
                       experimentData.lab        = "",
                       experimentData.contact    = "",
                       experimentData.title      = "",
                       experimentData.abstract   = "",
                       experimentData.url        = "",
-                      experimentData.other      = list(),
-                      validate                  = TRUE)
+                      experimentData.other      = list())
 {
-    if (!missing(rccDir) && !is.null(rccDir))
-        {
-            if(!missing(rccCollectorToolExport) && !is.null(rccCollectorToolExport)) {
-                stop("Both rccDir and rccCollectorToolExport are specified")
-            }
-
-            if (grepl('\\.csv$', tolower(rccDir))) {
-                stop("A .CSV file appears to have been specified as the rccDir argument (if this is the RCC Collector Tool Export, specify its path in the rccCollectorToolExport argument instead)")
-            }
-
-            message("Reading RCC files...")
-            rccSet <- readRccBatch(rccDir)
-
-        } else if(!missing(rccCollectorToolExport) && !is.null(rccCollectorToolExport)) {
-
-            message("Reading RCC Collector Tool Export...")
-            rccSet <- readRccCollectorToolExport(rccCollectorToolExport)
-
-        } else {
-            stop("Either rccDir or rccCollectorToolExport must be specified")
+    if (!missing(rccFiles) && !is.null(rccFiles))
+    {
+        if(!missing(rccCollectorToolExport) && !is.null(rccCollectorToolExport)) {
+            stop("Both rccFiles and rccCollectorToolExport are specified")
         }
 
-    experimentData(rccSet) <- new(
-        "MIAME"
-        ,name       = experimentData.name
-        ,lab        = experimentData.lab
-        ,contact    = experimentData.contact
-        ,title      = experimentData.title
-        ,abstract   = experimentData.abstract
-        ,url        = experimentData.url
-        ,other      = experimentData.other
-        )
+        if (grepl('\\.csv$', tolower(rccFiles[1]))) {
+            stop("A .CSV file appears to have been specified as the rccFiles argument (if this is the RCC Collector Tool Export, specify its path in the rccCollectorToolExport argument instead)")
+        }
 
-    preproc(rccSet) <- list(state="newRccSet")
+        message("Reading RCC files...")
+        rccSet <- readRccBatch(rccFiles)
+
+    } else if(!missing(rccCollectorToolExport) && !is.null(rccCollectorToolExport)) {
+
+        message("Reading RCC Collector Tool Export...")
+        rccSet <- readRccCollectorToolExport(rccCollectorToolExport)
+
+    } else {
+        stop("Either rccFiles or rccCollectorToolExport must be specified")
+    }
+                                  
+    experimentData(rccSet) <- new("MIAME",
+                                  name       = experimentData.name,
+                                  lab        = experimentData.lab,
+                                  contact    = experimentData.contact,
+                                  title      = experimentData.title,
+                                  abstract   = experimentData.abstract,
+                                  url        = experimentData.url,
+                                  other      = experimentData.other)
 
     GeneRLF <- unique(as.character(pData(rccSet)$GeneRLF))
     if (length(GeneRLF) != 1) {
         stop("Expecting exactly one RLF file to be referenced by all RCC files; check RCCs or RCC Collector Tool Export")
     }
-    rlfFile <- basename(rlfPath)
-    if (grepl('\\.rlf$', rlfFile)) {
-        rlfFile.noext <- sub('\\.rlf$', '', rlfFile)
-    } else if (grepl('\\.RLF$', rlfFile)) {
-        rlfFile.noext <- sub('\\.RLF$', '', rlfFile)
-    }
-    if (GeneRLF != rlfFile.noext) {
-        stop(paste0("Specified RLF (\"", rlfPath, "\") doesn't match that in the input RCCs or RCC Collector Tool Export (\"", GeneRLF, "\")"))
-    }
-    annotName <- GeneRLF
     annotation(rccSet) <- GeneRLF
-    
     pData(rccSet)$GeneRLF <- NULL # Removing it from pData since it's now in annotation(rccSet)
+
+    if (!is.null(rlf))
+    {
+        rlfFile <- basename(rlf)
+        if (grepl('\\.rlf$', rlfFile)) {
+            rlfFile.noext <- sub('\\.rlf$', '', rlfFile)
+        } else if (grepl('\\.RLF$', rlfFile)) {
+            rlfFile.noext <- sub('\\.RLF$', '', rlfFile)
+        }
+        if (GeneRLF != rlfFile.noext) {
+            stop(paste0("Specified RLF (\"", rlf, "\") doesn't match that in the input RCCs or RCC Collector Tool Export (\"", GeneRLF, "\")"))
+        }
+    }
 
     if ((!is.null(extraPdata)) && (length(extraPdata) > 0))
         {
@@ -1072,8 +1077,7 @@ newRccSet <- function(rccDir,
                     if ( "SampleType" %in% colnames( xpd ) ) {
                         if ( !all( is.na( new_pdata$SampleType ) ) )
                             stop( "SampleType column being supplied by more than one extraPdata file" )
-                        new_pdata$SampleType <- xpd$SampleType
-                        xpd$SampleType <- NULL
+                        new_pdata$SampleType <- NULL
                     }
 
                     new_pdata <- merge(
@@ -1103,79 +1107,92 @@ newRccSet <- function(rccDir,
 
     varMetadata( phenoData( rccSet ) )[ "SampleType", "labelDescription" ] <- paste0("blankLabel='", blankLabel, "'")
 
-    # The codeset annotation should be rebuilt from input RLF/CDR/etc *every* time; the csv output to annotPath will thus
-    # be just for reference. -RZ 2014-12-14
-    annot <- buildCodesetAnnotation(
-        rlfPath                 = rlfPath,
-        cdrDesignData           = cdrDesignData,
-        addEgAnnotations        = addEgAnnotations,
-        removeRedundantCols     = TRUE
-        )
-    rccSet <- addCodesetAnnotation(
-        rccSet          = rccSet,
-        annot           = annot,
-        reorder         = TRUE,
-        showWarnings    = FALSE
-        )
+    if (!is.null(rlf))
+    {
+        # The codeset annotation should be rebuilt from input RLF/CDR/etc *every* time; the .CSV output to annotPath will thus
+        # be just for reference. -RZ 2014-12-14
+        annot <- buildCodesetAnnotation(
+            rlf                 = rlf,
+            cdrDesignData       = cdrDesignData,
+            addEgAnnotations    = addEgAnnotations,
+            removeRedundantCols = TRUE
+            )
+        rccSet <- addCodesetAnnotation(
+            rccSet          = rccSet,
+            annot           = annot,
+            reorder         = TRUE,
+            showWarnings    = FALSE
+            )
+    }
 
     #
     # Record the org.Hs.eg.db version
     #
-    if (addEgAnnotations == TRUE)
-        {
-            if ("org.Hs.eg.db" %in% names(sessionInfo()$otherPkgs)) {
-                org.Hs.eg.db_version <- sessionInfo()$otherPkgs$org.Hs.eg.db$Version
+    if (addEgAnnotations == TRUE) {
 
-            } else if ("org.Hs.eg.db" %in% names(sessionInfo()$loadedOnly)) {
-                org.Hs.eg.db_version <- sessionInfo()$loadedOnly$org.Hs.eg.db$Version
+        if ("org.Hs.eg.db" %in% names(sessionInfo()$otherPkgs)) {
+            org.Hs.eg.db_version <- sessionInfo()$otherPkgs$org.Hs.eg.db$Version
 
-            } else {
-                warning("Attempted to record org.Hs.eg.db version but did not find it in the expected locations in sessionInfo()")
+        } else if ("org.Hs.eg.db" %in% names(sessionInfo()$loadedOnly)) {
+            org.Hs.eg.db_version <- sessionInfo()$loadedOnly$org.Hs.eg.db$Version
 
-            }
-
-            preproc(rccSet) <- c(preproc(rccSet), fData=paste0("Added EntrezGene annotations using org.Hs.eg.db version ", org.Hs.eg.db_version))
+        } else {
+            warning("Attempted to record org.Hs.eg.db version but did not find it in the expected locations in sessionInfo()")
         }
 
-    # Remove superfluous columns; see also additional code in createOrUploadEpProject() (in NanoStringQCProGNE)
-    pData(rccSet)$FileVersion         <- NULL
-    pData(rccSet)$SoftwareVersion     <- NULL
-    pData(rccSet)$Owner               <- NULL
-    pData(rccSet)$SystemAPF           <- NULL
-    #pData(rccSet)$FovCount                     # Required in the QC report
-    #pData(rccSet)$FovCounted                   # Required in the QC report
-    pData(rccSet)$ScannerID           <- NULL
-    #pData(rccSet)$StagePosition                # Required in the QC report
-    #pData(rccSet)$BindingDensity               # Required in the QC report
-    #pData(rccSet)$CartridgeID                  # See comment by corresponding line in createOrUpdateEpProject() (in NanoStringQCProGNE)
-    pData(rccSet)$CartridgeBarcode    <- NULL
-    fData(rccSet)$CodeClass_codesetAnnot <- NULL
-    fData(rccSet)$Accession_codesetAnnot <- NULL
-    fData(rccSet)$GeneName_codesetAnnot  <- NULL
-    fData(rccSet)$Accession_CDR       <- NULL
+        preproc(rccSet)$org.Hs.eg.db_version <- org.Hs.eg.db_version
 
-    # Initialize preproc
-    preproc(rccSet) <- c(preproc(rccSet), exprs="Raw data")
+    } else {
+        preproc(rccSet)$org.Hs.eg.db_version <- NA
+    }
 
-    if (validate)
-        validRccSet(rccSet, stopOnError=TRUE, reportWarnings=TRUE, showMessages=TRUE)
+    # Remove superfluous columns (see also additional code in createOrUploadEpProject() (in NanoStringQCProGNE)).
+    if (!is.null(dropPdataCols) && (length(dropPdataCols) > 0)) {
+        for (x in dropPdataCols) {
+            pData(rccSet)[[ x ]] <- NULL
+        }
+    }
+    if (!is.null(dropFdataCols) && (length(dropFdataCols) > 0)) {
+        for (x in dropFdataCols) {
+            fData(rccSet)[[ x ]] <- NULL
+        }
+    }
+
+    checkRccSet(rccSet, reportWarnings=TRUE, showMessages=TRUE)
     
     return(rccSet)
 
 }
 
-##' @title          Positive control normalization
-##' @description    Applies NanoString's recommended positive control normalization to data in a NanoString ExpressionSet object.
+
+
+setGeneric( "posCtrlNorm", function( rccSet, ... ) standardGeneric( "posCtrlNorm" ) )
+
+##' @rdname posCtrlNorm
+##' @aliases posCtrlNorm
 ##'
-##' @param  rccSet          NanoString ExpressionSet object
-##' @param  metric          Metric of positive controls used for normalization; one of "mean", "median", or "sum" (the default)
-##' @param  recordPosFactor Logical. If TRUE, 'PosFactor' will be added to the output's phenoData to record the positive control
-##'                         scaling factor that was computed for each sample.
+##' @title
+##' Positive control normalization
+##'
+##' @description
+##' Applies positive control normalization to the data in an RccSet object.
+##'
+##' @param rccSet
+##' An RccSet object.
+##'
+##' @param summaryFunction
+##' Function to be used for the normalization (e.g. "mean", "median", or
+##' "sum"). User-defined functions similar to these can be specified here as
+##' well.
+##'
+##' @param quietly
+##' Logical. If TRUE, messages and warnings will not be shown.
 ##'
 ##' @return
-##' A NanoString ExpressionSet object that has count data adjusted by positive control counts.
-##' The positive control scaling factor is recorded in PosFactor in the output's phenoData
-##' (an error is generated if this column already exists in the input).
+##' A copy of the input RccSet that has count data adjusted by positive control
+##' counts. The positive control scaling factor is recorded in PosFactor in the
+##' output's phenoData (if this column already exists in the input, it will
+##' be overwritten in the output copy).
 ##'
 ##' @export
 ##'
@@ -1185,62 +1202,176 @@ newRccSet <- function(rccDir,
 ##'
 ##' @author Dorothee Nickles
 ##'
-posCtrlNorm <- function(rccSet,
-                                 metric=c("sum", "mean", "median"),
-                                 recordPosFactor=TRUE)
-{
-	stopifnot( is(rccSet, "ExpressionSet") )
+setMethod(
+    "posCtrlNorm",
+    "RccSet",
+    function(rccSet,
+             summaryFunction = "sum",
+             quietly = FALSE)
+    {
+        if (!quietly && "posCtrlData" %in% ls(assayData(rccSet)))
+            warning("Input already contains positive control normalized data")
 
-	metric <- match.arg(metric)
+        prccSet <- copyRccSet(rccSet)
 
-    #if (preproc(rccSet)$state != "newRccSet") {
-    #    warning("Input already contains positive control normalized data")
-    #}
+        if (class(summaryFunction) == "character") {
+            fun <- get(summaryFunction)
+            summaryFunction.char <- summaryFunction
+        }
+        else {
+            fun <- summaryFunction
+            summaryFunction.char <- as.character(quote(summaryFunction))
+        }
 
-	prccSet <- copyRccSet(rccSet)    # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
+        posSignal <- apply(exprs(prccSet)[fData(prccSet)$CodeClass == "Positive", ], 2, fun)
+        signalMean <- mean(posSignal)
+        posFactor <- signalMean/posSignal
 
-	fun <- match.fun(metric)
-	posSignal <- apply(exprs(prccSet)[fData(prccSet)$CodeClass == "Positive", ], 2, fun)
-	signalMean <- mean(posSignal)
-	posFactor <- signalMean/posSignal
+        if (!quietly && "posCtrlData" %in% ls(assayData(prccSet)))
+            warning("Input already contains positive-control normalized data")
 
-    assayData(prccSet)$posCtrlData <- t(apply(assayData(prccSet)$exprs, 1, function(x) { x * posFactor }))
-    preproc(prccSet) <- c(preproc(prccSet), assayData_posCtrlData="Positive control normalized data")
-    preproc(prccSet)$state <- "posCtrlNorm"
-
-    if (recordPosFactor) {
-        #if ("PosFactor" %in% colnames(pData(prccSet))) {
-        #    stop("PosFactor already exists in the input's phenoData")
-        #}
+        assayData(prccSet)$posCtrlData <- t(apply(assayData(prccSet)$exprs, 1, function(x) { x * posFactor }))
         pData(prccSet)$PosFactor <- posFactor
         PosFactor.metadata_rownum <- which(rownames(varMetadata(phenoData(prccSet))) == "PosFactor")
         varMetadata(phenoData(prccSet))$labelDescription[ PosFactor.metadata_rownum ] <- "Positive control scaling factor"
+
+        preproc(prccSet)$posCtrlData_summaryFunction <- summaryFunction.char
+
+        return(prccSet)
     }
+    )
 
-	return(prccSet)
-}
 
+
+setGeneric( "presAbsCall", function( rccSet, ... ) standardGeneric( "presAbsCall" ) )
+
+##' @rdname presAbsCall
+##' @aliases presAbsCall
+##'
 ##' @title
-##' NanoString count data normalization
+##' Presence/absence call
 ##'
 ##' @description
-##' Function to normalize count data given a NanoString ExpressionSet object.
-##' Note that count data is log2-transformed before normalization and *remains*
-##' log2-transformed returned ExpressionSet. If housekeeping normalization is
-##' specified, the housekeeping features must be specified as well (see below)
-##' and this will be recorded in the returned ExpressionSet in a new fData column
-##' named "is.housekeeping".
+##' Adds a matrix to assayData (`paData') which indicates the presence/absence
+##' call for each gene in each sample using the background estimates and
+##' a stringency value. A gene is considered present in a sample if
+##' its count in that sample exceeds the corresponding background estimate
+##' times the stringency. The count values can be taken from either the
+##' positive control normalized data or the raw data (see
+##' the inputMatrix agrument). If the input doesn't contain background-corrected
+##' data, an error will be generated.
 ##'
-##' @param  rccSet          NanoString ExpressionSet object
-##' @param  method          Normalization method (one of "median", "mean", or
-##'                         "housekeeping")
-##' @param  hk              Logical (TRUE/FALSE) vector defining, for each
-##'                         feature, whether or not it shall be used for
-##'                         housekeeping normalization if method="housekeeping"
+##' @param rccSet
+##' An RccSet with background-corrected data.
+##'
+##' @param stringency
+##' Multiplier to use in establishing the presence/absence call as
+##' mentioned in the description.
+##'
+##' @param inputMatrix
+##' Name of the matrix in the RccSet's assayData on which to apply the
+##' presence/absence call (either "posCtrlData" or "exprs").
+##'
+##' @param quietly
+##' Logical. If TRUE, messages and warnings will not be shown.
+##' 
+##' @return
+##' A copy of the input is returned with a new matrix named `paData' added to
+##' the assayData that contains the presence/absence calls.
+##'
+##' @export
+##'
+##' @examples
+##' data(example_rccSet)
+##' pcnorm_rccSet <- posCtrlNorm(example_rccSet)
+##' bgEst <- getBackground(pcnorm_rccSet)
+##' bgcorr_rccSet <- subtractBackground(pcnorm_rccSet, bgEst)
+##' pa_rccset <- presAbsCall(bgcorr_rccSet)
+##'
+setMethod(
+    "presAbsCall",
+    "RccSet",
+    function(rccSet,
+             stringency = 2,
+             inputMatrix = c("posCtrlData", "exprs"),
+             quietly = FALSE
+            )
+    {
+        inputMatrix <- match.arg(inputMatrix)
+
+        if (!("bgEstimates" %in% ls(assayData(rccSet))))
+            stop("Background-corrected data required but not found in the input RccSet")
+
+        bgEstimates <- assayData(rccSet)$bgEstimates
+
+        M <- assayData(rccSet)[[ inputMatrix ]]
+        if (is.null(M)) 
+            stop(sprintf("Specified input matrix ('%s') is not present in the RccSet's assayData", inputMatrix)) 
+
+        if (!quietly && "paData" %in% ls(assayData(rccSet)))
+            warning("Input already contains a presence/absence matrix")
+
+        parccSet <- copyRccSet(rccSet)
+        assayData(parccSet)$paData <- (M > bgEstimates * stringency)
+        preproc(parccSet)$paData_stringency <- stringency
+        preproc(parccSet)$paData_inputMatrix <- inputMatrix
+
+        return(parccSet)
+    }
+    )
+
+
+
+setGeneric( "contentNorm", function( rccSet, ... ) standardGeneric( "contentNorm" ) )
+
+##' @rdname contentNorm
+##' @aliases contentNorm
+##'
+##' @title
+##' Content normalization
+##'
+##' @description
+##' Performs content normalization on the given RccSet.
+##'
+##' @param rccSet
+##' An RccSet.
+##'
+##' @param method
+##' Specifies the features to be used for normalization. "global" indicates that all
+##' features should be used and "housekeeping" indicates that only housekeeping
+##' features should be used. If "housekeeping" is specified and the `hk' argument
+##' (below) is also specified, then the features indicated by `hk' will be used.
+##' If "housekeeping" is specified and `hk' is left NULL, then the default
+##' housekeeping features (i.e. those with CodeClass == "Housekeeping") will be used.
+##'
+##' @param summaryFunction
+##' Character specifying the summary function to apply to the selected features
+##' (e.g. "mean" or "median"). User-defined functions similar to these can be
+##' specified here as well.
+##'
+##' @param hk
+##' Logical vector defining, for each feature, whether or not it shall
+##' be used for housekeeping normalization if housekeeping is specified as the
+##' normalization method.
+##'
+##' @param inputMatrix
+##' Name of the matrix in the RccSet's assayData to use as input for performing
+##' content normalization (one of "exprs", "posCtrlData", or "bgCorrData"). If
+##' posCtrlData or bgCorrData are specified but not found in the assayData, an
+##' error will be generated.
+##'
+##' @param quietly
+##' Boolean specifying whether or not messages and warnings should be omitted.
 ##'
 ##' @return
-##' A NanoString ExpressionSet object that has log2-transformed and
-##' normalized count data.
+##' A copy of the input is returned with a new matrix named `normData' added to
+##' the assayData that contains the content-normalized counts. (\bold{NOTE}: normData
+##' contains values on a log2 scale while all other matrices in assayData are
+##' on a linear scale.) If housekeeping is specified as the normalization method,
+##' then the housekeeping features used will be recorded in the returned RccSet in
+##' a new featureData column named `Housekeeping'. Parameters specified in the
+##' function call are also recorded in the output's experimentData@@preprocessing
+##' list.
 ##'
 ##' @export
 ##'
@@ -1251,297 +1382,471 @@ posCtrlNorm <- function(rccSet,
 ##' bg <- getBackground(pcnorm_example_rccSet)
 ##' bgcorr_example_rccSet <- subtractBackground(pcnorm_example_rccSet, bg)
 ##'
-##' gmnorm_example_rccSet <- contentNorm(bgcorr_example_rccSet, method="median")
+##' gmnorm_example_rccSet <- contentNorm(bgcorr_example_rccSet, method="global",
+##'     inputMatrix="exprs")
 ##' hknorm_example_rccSet <- contentNorm(bgcorr_example_rccSet, method="housekeeping",
-##'     hk=(tolower(fData(bgcorr_example_rccSet)$CodeClass) == "housekeeping"))
+##'     summaryFunction="mean")
 ##'
 ##' @author Dorothee Nickles
 ##'
-contentNorm <- function(rccSet,
-                        method=c("median", "mean", "housekeeping"),
-                        hk=NULL)
-{
-	stopifnot( is(rccSet, "ExpressionSet") )
-
-	method <- match.arg(method)
-
-	nrccSet <- copyRccSet(rccSet)    # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
-
-    state <- preproc(rccSet)$state
-    if (state == "newRccSet") {
-        stop("Positive control normalization and background correction should be applied before calling this function")
-    } else if (state == "posCtrlNorm") {
-        stop("Background correction should be applied before calling this function")
-    } else if (state == "subtractBackground") {
-        M <- assayData(nrccSet)$bgCorrData
-    } else if (state == "preprocRccSet") {
-        #warning("Input already contains content normalized data")
-        M <- assayData(nrccSet)$bgCorrData
-    }
-
-    # Apply the log2 transformation. Note that all the code below is thus
-    # operating on values that are on a log2 scale.
-    M <- log2(M)
-
-	if (method == "median") {
-
-        message("The data will be normalized by the median of all features.")
-        normData_preprocList_value <- "Preprocessed and median-normalized data (log2 scale)"
-
-        nFactors <- apply( M[ fData(nrccSet)$CodeClass == "Endogenous", ], 2, median )
-        nFact <-  nFactors - mean(nFactors)
-
-	} else if (method == "mean") {
-
-        message("The data will be normalized by the mean of all features.")
-        normData_preprocList_value <- "Preprocessed and mean-normalized data (log2 scale)"
-
-        nFactors <- apply( M[ fData(nrccSet)$CodeClass == "Endogenous", ], 2, mean )
-        nFact <-  nFactors - mean(nFactors)
-
-    } else { # method == "housekeeping"
-
-        if (is.null(hk)) {
-            hk <- (fData(nrccSet)$CodeClass == "Housekeeping")
-            if (all(hk == FALSE)) {
-                stop("no housekeeping features defined ('hk' arg is missing or NULL and no features have CodeClass == \"Housekeeping\")")
-            }
-        }
-        if (!is.logical(hk)) {
-            stop("'hk' arg must be a logical (TRUE/FALSE) vector")
-        }
-        if (all(hk == FALSE)) {
-            stop("no housekeeping features defined (all entries in 'hk' are FALSE)")
-        }
-        if (sum(hk) < 3) {
-            warning("Less than three houskeeping features are defined")
-        }
-
-        if (sum(hk) > 1) {
-            message(
-                sprintf("The data will be normalized by the median of the following housekeeping features:\n%s",
-                    paste(collapse="\n", rownames(fData(nrccSet))[hk]))
-            )
-            nFact <- apply( M[hk, ], 2, median )
+setMethod(
+    "contentNorm",
+    "RccSet",
+    function(rccSet,
+             method = c("global", "housekeeping"),
+             summaryFunction = "median",
+             hk = NULL,
+             inputMatrix = c("bgCorrData", "posCtrlData", "exprs"),
+             quietly = FALSE)
+    {
+        if (class(summaryFunction) == "character") {
+            sfun <- get(summaryFunction)
+            summaryFunction.char <- summaryFunction
         } else {
-            nFact <- M[hk, ]
+            sfun <- summaryFunction
+            summaryFunction.char <- as.character(quote(summaryFunction))
         }
 
-        fData(nrccSet)$is.housekeeping <- hk
+        inputMatrix <- match.arg(inputMatrix)
 
-        normData_preprocList_value <- "Preprocessed and housekeeping-normalized data (log2 scale)"
+        M <- assayData(rccSet)[[ inputMatrix ]]
+        if (is.null(M))
+            stop(sprintf("Specified input matrix ('%s') is not present in the RccSet's assayData", inputMatrix)) 
+
+        if (!quietly && "normData" %in% ls(assayData(rccSet)))
+            warning("Input already contains content-normalized data")
+
+        # Apply the log2 transformation. Note that all the code below is thus
+        # operating on values that are on a log2 scale.
+        M <- log2(M)
+
+        if (method == "global") {
+
+            nFactors <- apply( M[ fData(rccSet)$CodeClass == "Endogenous", ], 2, sfun )
+            nFact <-  nFactors - mean(nFactors)
+
+        } else { # method == "housekeeping"
+
+            if (is.null(hk)) {
+                hk <- (fData(rccSet)$CodeClass == "Housekeeping")
+                if (all(hk == FALSE)) {
+                    stop("no housekeeping features defined ('hk' arg is missing or NULL and no features have CodeClass == \"Housekeeping\")")
+                }
+            }
+            if (!is.logical(hk)) {
+                stop("'hk' arg must be a logical (TRUE/FALSE) vector")
+            }
+            if (all(hk == FALSE)) {
+                stop("no housekeeping features defined (all entries in 'hk' are FALSE)")
+            }
+            if (!quietly && (sum(hk) < 3)) {
+                warning("Less than three housekeeping features are defined")
+            }
+
+            fData(rccSet)$Housekeeping <- hk
+
+            if (sum(hk) > 1)
+                nFact <- apply( M[hk, ], 2, sfun )
+            else
+                nFact <- sfun( M[hk, ] )
+        }
+
+        M <- sweep(M, 2, nFact, "-")      # N.B. "-" is valid here since the opration is being performed
+                                          # with log2-based values, so the matrix is effectively being
+                                          # divided by nFact.
+
+        nrccSet <- copyRccSet(rccSet)
+
+        assayData(nrccSet)$normData <- M
+
+        preproc(nrccSet)$normData_method          <- method
+        preproc(nrccSet)$normData_summaryFunction <- summaryFunction.char
+        if (method == "housekeeping") {
+            preproc(nrccSet)$normData_hkgenes     <- fData(nrccSet)$GeneName[ hk ]
+            preproc(nrccSet)$normData_hkfeatures  <- featureNames(nrccSet)[ hk ]
+        } else {
+            preproc(nrccSet)$normData_hkgenes     <- NA
+            preproc(nrccSet)$normData_hkfeatures  <- NA
+        }
+        preproc(nrccSet)$normData_inputMatrix     <- inputMatrix
+
+        return(nrccSet)
     }
+    )
 
-    M <- sweep(M, 2, nFact, "-")      # N.B. "-" is valid here since the opration is being performed
-                                      # with log2-based values, so the matrix is effectively being
-                                      # divided by nFact.
 
-    assayData(nrccSet)$normData <- M
-    preproc(nrccSet) <- c(preproc(nrccSet), assayData_normData=normData_preprocList_value)
-    preproc(nrccSet)$state <- "preprocRccSet"
 
-	return(nrccSet)
-}
+setGeneric( "preprocRccSet", function( rccSet, ... ) standardGeneric( "preprocRccSet" ) )
 
+##' @rdname preprocRccSet
+##' @aliases preprocRccSet
+##'
 ##' @title
-##' Add background correction and normalization to a NanoString ExpressionSet
+##' Preprocess an RccSet
 ##'
 ##' @description
-##' This function performs the positive control normalization, background
-##' correction, and content normalization steps recommended for NanoString
-##' datasets. For each step, a matrix is added to the assayData of the
-##' resulting ExpressionSet object, and a string is appended to the
-##' experimentData@@preprocessing list (accessible through preproc(rccSet)
-##' where rccSet is an ExpressionSet output by this function). Positive
-##' control scaling factors are recorded in the output's phenoData in a
-##' column named 'PosCtrl', and the matrix used for background subtraction
-##' is stored in the assayData as 'bgEstimates'. If housekeeping normalization
-##' is performed, a column labeled 'is.housekeeping' is added to the fData that
-##' indicates which features were used for it.
+##' This function is a wrapper to perform any combination of positive control
+##' normalization, background correction, and content normalization on the
+##' input RccSet. For each completed preprocessing step, a matrix is added to
+##' the assayData of the resulting RccSet object:
+##'
+##' \itemize{
+##'   \item posCtrlData: expression data after positive control normalization
+##'   \item bgEstimates: background estimates
+##'   \item bgCorrData: expression data after positive control normalization and
+##'         background correction
+##'   \item normData: expression data after positive control normalization,
+##'         background correction, and content normalization
+##' }
+##'
+##' (\bold{NOTE}: normData is on a log2 scale while all the other matrices are
+##' on a linear scale.)
+##'
+##' If any step is omitted, the corresponding matrix will not be present in
+##' the output's assayData. The parameters for all steps are recorded in the
+##' output's experimentData@@preprocessing list (accessible through
+##' preproc(rccSet) where rccSet is an RccSet output by this function). In
+##' addition:
+##'
+##' \itemize{
+##'   \item If positive control normalization is performed, a column named
+##'         'PosCtrl' is added to the output's phenoData to record the
+##'         positive control scaling factors.
+##'   \item If the presence/absence call is performed, a matrix named `paData'
+##'         is added to the output's assayData to indicate the
+##'         presence/absence of each feature in each sample. See the `pa'
+##'         argument for details.
+##'   \item If housekeeping normalization is performed, a column labeled
+##'         `Housekeeping' is added to the featureData to indicate which
+##'         features were used for it.
+##' }
 ##'
 ##' @details
 ##' For more information on the rationale behind the recommended
-##' preprocessing and normalization steps, see the vignette.
+##' preprocessing and normalization steps, please see the vignette.
 ##'
-##' @param  rccSet          NanoString ExpressionSet object to be used as input.
-##' @param  method     Normalization method to use: "median" or "housekeeping".
-##' @param  hkgenes    Optional character vector with gene symbols
-##'                         to be used for normalization if method="housekeeping"
-##'                         instead of the panel housekeeping features
-##'                         defined in the input (i.e. those features with
-##'                         featureData CodeClass == "Housekeeping"). If specified,
-##'                         all features that match any of the specified symbols will
-##'                         be used. (To specify specific features, use the hkfeatures
-##'                         argument instead; see below.)
-##' @param  hkfeatures Optional character vector with full feature names
-##'                         ("<CodeClass>_<GeneName>_<Accession>", e.g.
-##'                         "Endogenous_ACTG1_NM_001614.1") to be used for
-##'                         normalization if method="housekeeping" instead of the
-##'                         panel housekeeping features defined in the input.
-##'                         (Note: if this argument is specified at the same time as
-##'                         hkgenes, an error will be thrown.)
+##' @param rccSet
+##' An RccSet.
+##'
+##' @param pcd
+##' Boolean specifying whether or not to perform positive control normalization.
+##' (`pcd' is short for `posCtrlData', the matrix which gets added to assayData
+##' when this step is performed.)
+##'
+##' @param pcdSummaryFunction
+##' Function to be used for the positive control normalization (e.g. "mean",
+##' "median", or "sum"). User-defined functions similar to these can be
+##' specified here as well.
+##'
+##' @param bg
+##' Boolean specifying whether or not to perform background correction.
+##'
+##' @param bgReference
+##' Measurements to use for background estimates: either "blank" (for blank
+##' samples), "negatives" (for negative control probes), or "both". For
+##' details on exactly how the background estimates are computed in each
+##' case, see getBackground().
+##'
+##' @param bgSummaryFunction
+##' Summary function for background measurements (e.g. "mean" or "median").
+##' User-defined functions similar to these can be specified here as well.
+##'
+##' @param bgStringency
+##' Factor by which deviation (SD or MAD) of the summarization output will be
+##' multiplied to obtain final background estimates.
+##'
+##' @param nSolverBackground.w1
+##' Value to use for the 'w1' argument to nSolverBackground(). (Only takes
+##' effect if bgReference == "both"; see getBackground().)
+##'
+##' @param nSolverBackground.shrink
+##' Value to use for the 'shrink' argument to nSolverBackground(). (Only takes
+##' effect if bgReference == "both"; see getBackground().)
+##'
+##' @param pa
+##' Boolean specifying whether or not the presence/absence call should be
+##' performed. For details, see presAbsCall().
+##'
+##' @param paStringency
+##' Multiplier to use in establishing the presence/absence call. For details,
+##' see presAbsCall().
+##'
+##' @param cn
+##' Boolean specifying whether or not content normalization should be performed.
+##'
+##' @param normMethod
+##' Specifies the features to be used for content normalization. "global" indicates that all
+##' features should be used and "housekeeping" indicates that only housekeeping
+##' features should be used. If "housekeeping" is specified and the `hk' argument
+##' (below) is also specified, then the features indicated by `hk' will be used.
+##' If "housekeeping" is specified and `hk' is left NULL, then the default
+##' housekeeping features (i.e. those with CodeClass == "Housekeeping") will be used.
+##'
+##' @param normSummaryFunction
+##' Character specifying the summary function to apply to the selected features
+##' (e.g. "mean" or "median") during the content normalization step. User-defined
+##' functions similar to these can be specified here as well.
+##'
+##' @param hkgenes
+##' Character vector with gene symbols to be used for content normalization if
+##' housekeeping is specified as the normalization method. If specified, all
+##' features that match any of the specified symbols will be used. (To specify
+##' specific features, use the `hkfeatures' argument instead; see below.)
+##'
+##' @param hkfeatures
+##' Character vector with full feature names
+##' ("<CodeClass>_<GeneName>_<Accession>", e.g. "Endogenous_ACTG1_NM_001614.1")
+##' to be used for content normalization if housekeeping is specified as the normalization
+##' method. (Note: if this argument is specified at the same time as `hkgenes',
+##' an error will be thrown.)
+##'
+##' @param quietly
+##' Boolean specifying whether or not messages and warnings should be omitted.
 ##'
 ##' @return
-##' A copy of the input ExpressionSet with additional matrices in the
-##' assayData for each successive preprocessing step (positive control normalization,
-##' background estimation, background correction, and content normalization).
-##' The final, fully preprocessed data is held in assayData(rccSet)$normData.
-##' Details for each step are stored in the experimentData@@preprocessing
-##' list (accessible through preproc(rccSet)).
+##' A copy of the input RccSet with additional matrices in the assayData for each
+##' successive preprocessing step along with parameters for each step recorded in the
+##' experimentData@@preprocessing list.
 ##'
 ##' @export
 ##'
 ##' @examples
 ##' data(example_rccSet)
-##' hknorm_example_rccSet <- preprocRccSet(rccSet = example_rccSet,
-##'     method = "housekeeping")
+##' hknorm_example_rccSet <- preprocRccSet(example_rccSet)
 ##'
 ##' @references
 ##' \href{http://www.nanostring.com/media/pdf/MAN_nCounter_Gene_Expression_Data_Analysis_Guidelines.pdf}{NanoString nCounter(R) Expression Data Analysis Guide (2012)}
 ##'
 ##' @author Dorothee Nickles, Robert Ziman
 ##'
-preprocRccSet <- function(rccSet,
-                                     method        = c("median", "housekeeping"),
-                                     hkgenes       = NULL,
-                                     hkfeatures    = NULL)
-{
-    # Input validation
-    method <- match.arg(method)
-    hkgenes     <- hkgenes
-    hkfeatures  <- hkfeatures
-    if ( (!is.null(hkgenes) || !is.null(hkfeatures)) && (method != "housekeeping") ) {
-        stop("hkgenes or hkfeatures is specified but method != \"housekeeping\"")
-    }
-
-    state <- preproc(rccSet)$state
-    #if (state != "newRccSet") {
-    #    warning("Input already contains preprocessed (or partially preprocessed) data")
-    #}
-    
-    # Postive control normalization
-    prccSet <- posCtrlNorm(rccSet)
-
-    # Background correction
-    if (hasBlanks(rccSet))
+setMethod(
+    "preprocRccSet",
+    "RccSet",
+    function(rccSet,
+             pcd = TRUE,
+             pcdSummaryFunction = "sum",
+             bg = TRUE,
+             bgReference = c("both", "blanks", "negatives"),
+             bgSummaryFunction = "median",
+             bgStringency = 1,
+             nSolverBackground.w1 = 2.18,
+             nSolverBackground.shrink = TRUE,
+             pa = TRUE,
+             paStringency = 2,
+             cn = TRUE,
+             normMethod = c("global", "housekeeping"),
+             normSummaryFunction = "median",
+             hkgenes = NULL,
+             hkfeatures = NULL,
+             quietly = FALSE)
     {
-        bgEstimates <- getBackground(rccSet = prccSet,
-                                        reference = "both",
-                                        stringency = 1)
-        srccSet <- subtractBackground(rccSet = prccSet,
-                                          bgEstimates = bgEstimates,
-                                          description = "Background estimates using both blank samples and negative control probes")
-    } else {
+        bgReference <- match.arg(bgReference)
+        normMethod <- match.arg(normMethod)
+       
+        # Positive control normalization
 
-        bgEstimates <- getBackground(rccSet = prccSet,
-                                        reference = "Negative",
-                                        stringency = 0)
-        srccSet <- subtractBackground(rccSet = prccSet,
-                                          bgEstimates = bgEstimates,
-                                          description <- "Background estimates using only negative control probes")
-    }
+        if (pcd) {
 
-    # Content normalization
+            temp_rccSet_1 <- posCtrlNorm(rccSet,
+                                         summaryFunction = pcdSummaryFunction)
 
-    if (method == "housekeeping")
-        #
-        # Note that some of the code in the QC report template may be depend
-        # on the exact strings (e.g. "Median", "Housekeeping") in the
-        # preproc list, so be careful when changing them below. -RZ 2015-01-18
-        #
-    {
-        if (length(hkgenes) > 0)
-        {
-            fdataGenes <- fData(rccSet)$GeneName
-
-            hkgenesNotFound <- setdiff(hkgenes, fdataGenes)
-            if (length(hkgenesNotFound) > 0) {
-                stop(
-                    paste0("the following genes specified in hkgenes were not found in the input's featureData: ",
-                        paste(collapse=" ", hkgenesNotFound))
-                )
-            }
-
-            hk <- rep(FALSE, nrow(fData(rccSet)))
-            GeneName.match <- match(hkgenes, fdataGenes)
-            hk[ GeneName.match ] <- TRUE
-
-        } else if (length(hkfeatures) > 0) {
-
-            fdataRownames <- rownames(fData(rccSet))
-
-            hkfeaturesNotFound <- setdiff(hkfeatures, fdataRownames)
-            if (length(hkfeaturesNotFound) > 0) {
-                stop(
-                    paste0("the following features specified in hkfeatures were not found in the input's featureData: \"",
-                        paste(collapse="\", \"", hkfeaturesNotFound), "\"")
-                )
-            }
-
-            hk <- rep(FALSE, nrow(fData(rccSet)))
-            rowname.match <- match(hkfeatures, rownames(fData(rccSet)))
-            hk[ rowname.match ] <- TRUE
+            bgInputMatrix <- "posCtrlData"
 
         } else {
-            hk <- fData(rccSet)$CodeClass == "Housekeeping"
+
+            temp_rccSet_1 <- copyRccSet(rccSet)
+            preproc(temp_rccSet_1)$posCtrlData_summaryFunction <- NA
+
+            bgInputMatrix <- "exprs"
         }
 
-        if (all(hk == FALSE)) {
-            stop("Housekeeping normalization selected but no housekeeping features are defined")
+        # Background correction
+
+        if (bg) {
+
+            bgEstimates <- getBackground(rccSet                   = temp_rccSet_1,
+                                         bgReference              = bgReference,
+                                         summaryFunction          = bgSummaryFunction,
+                                         stringency               = bgStringency,
+                                         nSolverBackground.w1     = nSolverBackground.w1,
+                                         nSolverBackground.shrink = nSolverBackground.shrink,
+                                         inputMatrix              = bgInputMatrix)
+
+            temp_rccSet_2 <- subtractBackground(rccSet            = temp_rccSet_1,
+                                                bgEstimates       = bgEstimates,
+                                                bgEstimatesParams = list(bgReference              = bgReference,
+                                                                         summaryFunction          = bgSummaryFunction,
+                                                                         stringency               = bgStringency,
+                                                                         nSolverBackground.w1     = nSolverBackground.w1,
+                                                                         nSolverBackground.shrink = nSolverBackground.shrink,
+                                                                         inputMatrix              = bgInputMatrix),
+                                                inputMatrix       = bgInputMatrix)
+
+            normInputMatrix <- "bgCorrData"
+
+        } else {
+
+            temp_rccSet_2 <- copyRccSet(temp_rccSet_1)
+            preproc(temp_rccSet_2)$bgEstimatesParams <- list(bgReference              = NA,
+                                                             summaryFunction          = NA,
+                                                             stringency               = NA,
+                                                             nSolverBackground.w1     = NA,
+                                                             nSolverBackground.shrink = NA,
+                                                             inputMatrix              = NA)
+
+            if (pcd)
+                normInputMatrix <- "posCtrlData"
+            else
+                normInputMatrix <- "exprs"
+
         }
 
-        nrccSet <- contentNorm(srccSet, method="housekeeping", hk=hk)
+        # Presence/absence matrix
 
-    } else {    # method == "median"
+        if (pa) {
+            if (bg) {
+                if (pcd)
+                    temp_rccSet_3 <- presAbsCall(temp_rccSet_2, stringency=paStringency, inputMatrix="posCtrlData")
+                else
+                    temp_rccSet_3 <- presAbsCall(temp_rccSet_2, stringency=paStringency, inputMatrix="exprs")
+            }
+        } else {
+            temp_rccSet_3 <- copyRccSet(temp_rccSet_2)
+            preproc(temp_rccSet_3)$paData_stringency <- NA
+            preproc(temp_rccSet_3)$paData_inputMatrix <- NA
+        }
 
-        nrccSet <- contentNorm(srccSet, method="median")
+        # Content normalization
+
+        if (cn) {
+
+            if (normMethod == "housekeeping")
+                #
+                # Note that some of the code in the QC report template may be depend
+                # on the exact strings (e.g. "Median", "Housekeeping") in the
+                # preproc list, so be careful when changing them below. -RZ 2015-01-18
+                #
+            {
+                if (length(hkgenes) > 0)
+                {
+                    fdataGenes <- fData(rccSet)$GeneName
+
+                    hkgenesNotFound <- setdiff(hkgenes, fdataGenes)
+                    if (length(hkgenesNotFound) > 0) {
+                        stop(
+                            paste0("the following genes specified in hkgenes were not found in the input's featureData: ",
+                                paste(collapse=" ", hkgenesNotFound))
+                        )
+                    }
+
+                    hk <- rep(FALSE, nrow(fData(rccSet)))
+                    GeneName.match <- match(hkgenes, fdataGenes)
+                    hk[ GeneName.match ] <- TRUE
+
+                } else if (length(hkfeatures) > 0) {
+
+                    fdataRownames <- rownames(fData(rccSet))
+
+                    hkfeaturesNotFound <- setdiff(hkfeatures, fdataRownames)
+                    if (length(hkfeaturesNotFound) > 0) {
+                        stop(
+                            paste0("the following features specified in hkfeatures were not found in the input's featureData: \"",
+                                paste(collapse="\", \"", hkfeaturesNotFound), "\"")
+                        )
+                    }
+
+                    hk <- rep(FALSE, nrow(fData(rccSet)))
+                    rowname.match <- match(hkfeatures, rownames(fData(rccSet)))
+                    hk[ rowname.match ] <- TRUE
+
+                } else {
+                    hk <- fData(rccSet)$CodeClass == "Housekeeping"
+                }
+
+                if (all(hk == FALSE)) {
+                    stop("Housekeeping normalization selected but no housekeeping features are defined")
+                }
+
+            } else {
+
+                hk <- NULL
+
+            }
+
+            temp_rccSet_4 <- contentNorm(rccSet          = temp_rccSet_3,
+                                         method          = normMethod,
+                                         summaryFunction = normSummaryFunction,
+                                         hk              = hk,
+                                         inputMatrix     = normInputMatrix)
+
+        } else {
+
+            temp_rccSet_4 <- copyRccSet(temp_rccSet_3)
+
+            preproc(temp_rccSet_4)$normData_method          <- NA
+            preproc(temp_rccSet_4)$normData_summaryFunction <- NA
+            preproc(temp_rccSet_4)$normData_hkgenes         <- NA
+            preproc(temp_rccSet_4)$normData_hkfeatures      <- NA
+            preproc(temp_rccSet_4)$normData_inputMatrix     <- NA
+
+        }
+
+        return(temp_rccSet_4)
     }
+    )
 
-    return(nrccSet)
-}
 
+
+setGeneric( "addQCFlags", function( rccSet, ... ) standardGeneric( "addQCFlags" ) )
+
+##' @rdname addQCFlags
+##' @aliases addQCFlags
+##'
 ##' @title          Add sample QC flags to an rccSet
-##' @description    Returns a copy of the input ExpressionSet with columns added to pData
+##' @description    Returns a copy of the input RccSet with columns added to pData
 ##'                 from the provided sample QC flag annotation file. (That file is
 ##'                 produced by makeQCReport(); see its help page for more
 ##'                 details.)
 ##'
-##' @param  rccSet      NanoString ExpressionSet object to be used as input
+##' @param  rccSet      An RccSet object
 ##' @param  flagFile    Path to a sample QC flag file as generated by the
 ##'                     NanoStringQCPro QC report (see makeQCReport())
 ##'
 ##' @return
-##' A copy of the input ExpressionSet with columns added to pData from the QC
+##' A copy of the input RccSet with columns added to pData from the QC
 ##' flag file.
 ##'
 ##' @author Dorothee Nickles
 ##'
-addQCFlags <- function(rccSet, flagFile)
-{
-    stopifnot( is(rccSet, "ExpressionSet") )
-    if (!file.exists(flagFile)) {
-        stop("flagFile not found")
+setMethod(
+    "addQCFlags",
+    "RccSet",
+    function(rccSet, flagFile)
+    {
+        if (!file.exists(flagFile)) {
+            stop("flagFile not found")
+        }
+
+        flags <- read.table(flagFile, header=TRUE, as.is=TRUE, sep="\t")
+        stopifnot(all(flags$SampleIdentifier %in% pData(rccSet)$FileName))
+
+        rccSet.withflags <- copyRccSet(rccSet)    # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
+
+        has.QCflag <-
+            apply(
+                flags,
+                1,
+                function(x) {
+                    return(ifelse(length(grep("TRUE", x[c("TechnicalFlags", "ControlFlags", "CountFlags")])) != 0, TRUE, FALSE))
+                }
+            )
+        flags$has.QCflag <- has.QCflag
+
+        mt <- match(pData(rccSet.withflags)$FileName, flags$SampleIdentifier)
+        pData(rccSet.withflags) <- cbind(pData(rccSet.withflags),
+            flags[mt,c("TechnicalFlags", "ControlFlags", "CountFlags", "has.QCflag")])
+
+        return(rccSet.withflags)
     }
-
-    flags <- read.table(flagFile, header=TRUE, as.is=TRUE, sep="\t")
-    stopifnot(all(flags$SampleIdentifier %in% pData(rccSet)$FileName))
-
-	rccSet.withflags <- copyRccSet(rccSet)    # Using copyRccSet() to be *sure* the original doesn't get affected in later code!
-
-    has.QCflag <-
-        apply(
-            flags,
-            1,
-            function(x) {
-                return(ifelse(length(grep("TRUE", x[c("TechnicalFlags", "ControlFlags", "CountFlags")])) != 0, TRUE, FALSE))
-            }
-        )
-    flags$has.QCflag <- has.QCflag
-
-    mt <- match(pData(rccSet.withflags)$FileName, flags$SampleIdentifier)
-    pData(rccSet.withflags) <- cbind(pData(rccSet.withflags),
-        flags[mt,c("TechnicalFlags", "ControlFlags", "CountFlags", "has.QCflag")])
-
-    return(rccSet.withflags)
-}
+    )
 
