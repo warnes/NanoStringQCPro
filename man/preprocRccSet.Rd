@@ -6,26 +6,32 @@
 \alias{preprocRccSet,RccSet-method}
 \title{Preprocess an RccSet}
 \usage{
-\S4method{preprocRccSet}{RccSet}(rccSet, pcd = TRUE,
-  pcdSummaryFunction = "sum", bg = TRUE, bgReference = c("both", "blanks",
+\S4method{preprocRccSet}{RccSet}(rccSet, doPosCtrlNorm = TRUE,
+  doBackground = TRUE, doPresAbs = TRUE, doContentNorm = TRUE,
+  pcnSummaryFunction = "sum", bgReference = c("both", "blanks",
   "negatives"), bgSummaryFunction = "median", bgStringency = 1,
-  nSolverBackground.w1 = 2.18, nSolverBackground.shrink = TRUE, pa = TRUE,
-  paStringency = 2, cn = TRUE, normMethod = c("global", "housekeeping"),
+  nSolverBackground.w1 = 2.18, nSolverBackground.shrink = TRUE,
+  paStringency = 2, normMethod = c("global", "housekeeping"),
   normSummaryFunction = "median", hkgenes = NULL, hkfeatures = NULL,
   quietly = FALSE)
 }
 \arguments{
 \item{rccSet}{An RccSet.}
 
-\item{pcd}{Boolean specifying whether or not to perform positive control normalization.
+\item{doPosCtrlNorm}{Boolean specifying whether or not to perform positive control normalization.
 (`pcd' is short for `posCtrlData', the matrix which gets added to assayData
 when this step is performed.)}
 
-\item{pcdSummaryFunction}{Function to be used for the positive control normalization (e.g. "mean",
+\item{doBackground}{Boolean specifying whether or not to perform background correction.}
+
+\item{doPresAbs}{Boolean specifying whether or not the presence/absence call should be
+performed. For details, see presAbsCall().}
+
+\item{doContentNorm}{Boolean specifying whether or not content normalization should be performed.}
+
+\item{pcnSummaryFunction}{Function to be used for the positive control normalization (e.g. "mean",
 "median", or "sum"). User-defined functions similar to these can be
 specified here as well.}
-
-\item{bg}{Boolean specifying whether or not to perform background correction.}
 
 \item{bgReference}{Measurements to use for background estimates: either "blank" (for blank
 samples), "negatives" (for negative control probes), or "both". For
@@ -44,13 +50,8 @@ effect if bgReference == "both"; see getBackground().)}
 \item{nSolverBackground.shrink}{Value to use for the 'shrink' argument to nSolverBackground(). (Only takes
 effect if bgReference == "both"; see getBackground().)}
 
-\item{pa}{Boolean specifying whether or not the presence/absence call should be
-performed. For details, see presAbsCall().}
-
 \item{paStringency}{Multiplier to use in establishing the presence/absence call. For details,
 see presAbsCall().}
-
-\item{cn}{Boolean specifying whether or not content normalization should be performed.}
 
 \item{normMethod}{Specifies the features to be used for content normalization. "global" indicates that all
 features should be used and "housekeeping" indicates that only housekeeping

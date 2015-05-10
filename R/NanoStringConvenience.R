@@ -1528,18 +1528,25 @@ setGeneric( "preprocRccSet", function( rccSet, ... ) standardGeneric( "preprocRc
 ##' @param rccSet
 ##' An RccSet.
 ##'
-##' @param pcd
+##' @param doPosCtrlNorm
 ##' Boolean specifying whether or not to perform positive control normalization.
 ##' (`pcd' is short for `posCtrlData', the matrix which gets added to assayData
 ##' when this step is performed.)
 ##'
-##' @param pcdSummaryFunction
+##' @param doBackground
+##' Boolean specifying whether or not to perform background correction.
+##'
+##' @param doPresAbs
+##' Boolean specifying whether or not the presence/absence call should be
+##' performed. For details, see presAbsCall().
+##'
+##' @param doContentNorm
+##' Boolean specifying whether or not content normalization should be performed.
+##'
+##' @param pcnSummaryFunction
 ##' Function to be used for the positive control normalization (e.g. "mean",
 ##' "median", or "sum"). User-defined functions similar to these can be
 ##' specified here as well.
-##'
-##' @param bg
-##' Boolean specifying whether or not to perform background correction.
 ##'
 ##' @param bgReference
 ##' Measurements to use for background estimates: either "blank" (for blank
@@ -1563,16 +1570,9 @@ setGeneric( "preprocRccSet", function( rccSet, ... ) standardGeneric( "preprocRc
 ##' Value to use for the 'shrink' argument to nSolverBackground(). (Only takes
 ##' effect if bgReference == "both"; see getBackground().)
 ##'
-##' @param pa
-##' Boolean specifying whether or not the presence/absence call should be
-##' performed. For details, see presAbsCall().
-##'
 ##' @param paStringency
 ##' Multiplier to use in establishing the presence/absence call. For details,
 ##' see presAbsCall().
-##'
-##' @param cn
-##' Boolean specifying whether or not content normalization should be performed.
 ##'
 ##' @param normMethod
 ##' Specifies the features to be used for content normalization. "global" indicates that all
@@ -1623,17 +1623,17 @@ setMethod(
     "preprocRccSet",
     "RccSet",
     function(rccSet,
-             pcd = TRUE,
-             pcdSummaryFunction = "sum",
-             bg = TRUE,
+             doPosCtrlNorm = TRUE,      # pcd = TRUE,
+             doBackground = TRUE,       # bg = TRUE,
+             doPresAbs = TRUE,          # pa = TRUE,
+             doContentNorm = TRUE,      # cn = TRUE,
+             pcnSummaryFunction = "sum",
              bgReference = c("both", "blanks", "negatives"),
              bgSummaryFunction = "median",
              bgStringency = 1,
              nSolverBackground.w1 = 2.18,
              nSolverBackground.shrink = TRUE,
-             pa = TRUE,
              paStringency = 2,
-             cn = TRUE,
              normMethod = c("global", "housekeeping"),
              normSummaryFunction = "median",
              hkgenes = NULL,
@@ -1645,10 +1645,10 @@ setMethod(
        
         # Positive control normalization
 
-        if (pcd) {
+        if (doPosCtrlNorm) {
 
             temp_rccSet_1 <- posCtrlNorm(rccSet,
-                                         summaryFunction = pcdSummaryFunction)
+                                         summaryFunction = pcnSummaryFunction)
 
             bgInputMatrix <- "posCtrlData"
 
@@ -1662,7 +1662,7 @@ setMethod(
 
         # Background correction
 
-        if (bg) {
+        if (doBackground) {
 
             bgEstimates <- getBackground(rccSet                   = temp_rccSet_1,
                                          bgReference              = bgReference,
@@ -1694,7 +1694,7 @@ setMethod(
                                                              nSolverBackground.shrink = NA,
                                                              inputMatrix              = NA)
 
-            if (pcd)
+            if (doPosCtrlNorm)
                 normInputMatrix <- "posCtrlData"
             else
                 normInputMatrix <- "exprs"
@@ -1703,9 +1703,9 @@ setMethod(
 
         # Presence/absence matrix
 
-        if (pa) {
-            if (bg) {
-                if (pcd)
+        if (doPresAbs) {
+            if (doBackground) {
+                if (doPosCtrlNorm)
                     temp_rccSet_3 <- presAbsCall(temp_rccSet_2, stringency=paStringency, inputMatrix="posCtrlData")
                 else
                     temp_rccSet_3 <- presAbsCall(temp_rccSet_2, stringency=paStringency, inputMatrix="exprs")
@@ -1718,7 +1718,7 @@ setMethod(
 
         # Content normalization
 
-        if (cn) {
+        if (doContentNorm) {
 
             if (normMethod == "housekeeping")
                 #
