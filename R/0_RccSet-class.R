@@ -1,11 +1,10 @@
+
 check_cols <- function(expectedCols, actualCols, msg) {
     notfound <- is.na(match(expectedCols, actualCols))
     if (any(notfound)) 
         return(paste0(msg, ": ", paste(collapse=", ", expectedCols[notfound])))
     else return(character(0))
 }
-
-
 
 
 ##' @title
@@ -16,14 +15,13 @@ check_cols <- function(expectedCols, actualCols, msg) {
 ##'
 ##' The RccSet class is a trivial extension of
 ##' \code{\linkS4class{ExpressionSet}}, but with additional validation
-##' criteria. \code{RccSet} is a class generator function. \strong{Documentation
-##' here needs to explain requirements.}
+##' criteria. \code{RccSet} is a class generator function.
 ##'
 ##' @details
 ##'
 ##' A valid \code{RccSet} object must have the following columns in
-##' \code{featureData}: \code{"CodeClass"}, \code{"GeneName"} \code{"Accession"}
-##' \code{"BarCode"}, and \code{"ProbeID"}. It must also have the following
+##' \code{featureData}: \code{"CodeClass"}, \code{"GeneName"}, and
+##' \code{"Accession"}. It must also have the following
 ##' \code{phenoData} columns: \code{"FileName"}, \code{"SampleID"},
 ##' \code{"LaneID"}, \code{"FovCount"}, \code{"FovCounted"},
 ##' \code{"StagePosition"}, \code{"BindingDensity"}, \code{"CartridgeID"}, and
@@ -32,7 +30,7 @@ check_cols <- function(expectedCols, actualCols, msg) {
 ##'
 ##' @seealso
 ##'
-##' See \code{\link{validRccSet}}, which provides additional checks and
+##' See \code{\link{checkRccSet}}, which provides additional checks and
 ##' generates warnings for unexpected or unusual conditions which, though
 ##' permitted by the class, may indicate data import errors.
 ##' 
@@ -89,8 +87,6 @@ check_cols <- function(expectedCols, actualCols, msg) {
             "CodeClass"
             ,"GeneName"
             ,"Accession"
-            ,"BarCode"
-            ,"ProbeID"
             )
         pData.requiredCols <- c(
             "FileName"
@@ -175,7 +171,7 @@ setMethod(
 
         e <- ExpressionSet( obj, ... )
 
-        fData.char <- c( "CodeClass", "GeneName", "Accession", "BarCode", "ProbeID" )
+        fData.char <- c( "CodeClass", "GeneName", "Accession" )
         pData.char <- c( "FileName", "SampleID", "CartridgeID", "SampleType" )
         pData.numeric <- c( "LaneID", "FovCount", "FovCounted", "StagePosition", "BindingDensity" )
 

@@ -27,7 +27,7 @@ CartridgeBarcode,
 CodeClass,Name,Accession,Count
 Endogenous,ACTG1,NM_001614,11
 Endogenous,ITGA2,NM_002203,12
-Endogenous,RBCK1,NM_006462,8
+Housekeeping,RBCK1,NM_006462,8
 Endogenous,CSH2,NM_020991,12
 Endogenous,ADAMTS13,NM_139028,4
 Endogenous,IL25,NM_172314,8

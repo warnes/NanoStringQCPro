@@ -1,8 +1,8 @@
 Package: NanoStringQCPro
 Title: Quality metrics and data processing methods for NanoString mRNA
         gene expression data
-Version: 1.0.0
-Date: 2015-04-02
+Version: 1.0.1
+Date: 2015-05-10
 Author: Dorothee Nickles <nickles.dorothee@gene.com>, Thomas Sandmann
         <sandmann.thomas@gene.com>, Robert Ziman
         <ziman.robert@gene.com>, Richard Bourgon
