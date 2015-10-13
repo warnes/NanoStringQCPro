@@ -1,0 +1,26 @@
+Package: NanoStringQCPro
+Title: Quality metrics and data processing methods for NanoString mRNA
+        gene expression data
+Version: 1.2.0
+Date: 2015-07-29
+Author: Dorothee Nickles <nickles.dorothee@gene.com>, Thomas Sandmann
+        <sandmann.thomas@gene.com>, Robert Ziman
+        <ziman.robert@gene.com>, Richard Bourgon
+        <bourgon.richard@gene.com>
+Maintainer: Robert Ziman <ziman.robert@gene.com>
+Description: NanoStringQCPro provides a set of quality metrics that can
+        be used to assess the quality of NanoString mRNA gene
+        expression data -- i.e. to identify outlier probes and outlier
+        samples. It also provides different background subtraction and
+        normalization approaches for this data. It outputs suggestions
+        for flagging samples/probes and an easily sharable html quality
+        control output.
+Depends: R (>= 3.2), methods
+Imports: AnnotationDbi (>= 1.26.0), org.Hs.eg.db (>= 2.14.0), Biobase
+        (>= 2.24.0), knitr (>= 1.6), NMF (>= 0.20.5), RColorBrewer (>=
+        1.0-5), png (>= 0.1-7)
+Suggests: roxygen2 (>= 4.0.1), testthat, BiocStyle
+License: Artistic-2.0
+biocViews: Microarray, mRNAMicroarray, Preprocessing, Normalization,
+        QualityControl, ReportWriting
+LazyData: true
