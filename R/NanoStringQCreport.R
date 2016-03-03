@@ -311,7 +311,13 @@ setMethod(
       fileNames$html,
       options = c( "use_xhtml", "smartypants", "toc" ), # passed to markdownToHTML. Skipping base64_images, mathjax, and highlight_code
       header = qcReportHeader,
-      quiet = TRUE
+      quiet = TRUE,
+      force_v1 = TRUE
+        #
+        # Fixes the "It seems you should call rmarkdown::render() instead of knitr::knit2html() because NanoStringQCPro_QC_report.Rmd
+        # appears to be an R Markdown v2 document" error that started coming up with knitr_1.12 (no such error was coming up with knitr_1.11).
+        # -RZ 2016-03-03
+        #
       )
   
     if ( cleanMarkdown ) {
