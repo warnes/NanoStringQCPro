@@ -1,0 +1,353 @@
+%\VignetteIndexEntry{NanoStringQCPro overview}
+%\VignetteDepends{}
+%\VignetteKeywords{NanoStringQCPro}
+%\VignettePackage{NanoStringQCPro}
+
+\documentclass[11pt]{article}
+
+\usepackage{changepage}
+\newenvironment{Schunk}{\begin{adjustwidth}{.25in}{.25in}\footnotesize}{\end{adjustwidth}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% LaTeX: preamble (cf. http://en.wikibooks.org/wiki/LaTeX/Document_Structure#Global_structure)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%
+% http://www.bioconductor.org/packages/release/bioc/vignettes/BiocStyle/inst/doc/LatexStyle.pdf
+%
+<<style, eval=TRUE, echo=FALSE, results=tex>>=
+BiocStyle::latex()
+@
+
+<<echo=FALSE>>=
+options(width=80)
+@
+
+\usepackage{graphicx}       % http://stackoverflow.com/a/3134236
+
+\usepackage[T1]{fontenc}    % http://tex.stackexchange.com/a/2376
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   LaTeX: beginning of document
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\title{NanoStringQCPro}
+\author{Dorothee Nickles, Thomas Sandmann, Robert Ziman, Richard Bourgon}
+\date{\today}
+\maketitle
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   Scope
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Scope}
+
+The \Rpackage{NanoStringQCPro} package facilitates preprocessing and quality control of NanoString\textsuperscript{\textregistered}\ gene expression data. It provides functions for creating an \Rclass{RccSet} (an extension of the standard \Rclass{ExpressionSet} class) from the files produced by an nCounter\textsuperscript{\textregistered}\ mRNA Gene Expression assay, performing NanoString\textsuperscript{\textregistered}-recommended background correction and normalization, and generating a report with quality metrics that can be used to identify outlier samples and poorly performing probes (i.e. probes with signals within noise range). The overall workflow is outlined in Figure \ref{fig:workflow}.
+
+\begin{figure}[hb!]     % http://stackoverflow.com/a/3134236
+\label{fig:workflow}  
+\centering
+\includegraphics[width=135mm]{NanoStringQCProOverview}
+\caption{Overview of the \Rpackage{NanoStringQCPro} work flow.}
+\end{figure}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   Quick start
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Quick start}
+
+The package's \Rfunction{newRccSet()} function is the main wrapper function for reading in nCounter\textsuperscript{\textregistered}\ mRNA Gene Expression count data and annotations:
+
+<<echo=FALSE>>=
+options(warn=-1)
+@
+<<libraryNanoStringQCPro>>=
+library(NanoStringQCPro)
+@
+<<echo=FALSE>>=
+options(warn=0)
+@
+<<>>=
+exampleDataDir <- system.file("extdata", package="NanoStringQCPro")
+rccDir <- file.path(exampleDataDir, "RCC")
+example_rccSet <- newRccSet(
+     rccFiles               = dir(rccDir, full.names=TRUE)
+   #,rccCollectorToolExport = file.path(exampleDataDir, "nSolver", "RCC_collector_tool_export.csv")
+    ,rlf                    = file.path(exampleDataDir, "RLF", "NQCP_example.rlf")
+    ,cdrDesignData          = file.path(exampleDataDir, "CDR", "CDR-DesignData.csv")
+    ,extraPdata             = file.path(exampleDataDir, "extraPdata", "SampleType.txt")
+    ,blankLabel             = "blank"
+    ,experimentData.name    = "Dorothee Nickles"
+    ,experimentData.lab     = "Richard Bourgon"
+    ,experimentData.contact = "nickles.dorothee@gene.com"
+    ,experimentData.title   = "NanoStringQCPro example dataset"
+    ,experimentData.abstract= "Example data for the NanoStringQCPro package"
+)
+
+# Reading RCC files...
+# checkRccSet() messages:
+#   The following panel housekeeping genes were found: RBCK1, USP19
+@
+
+Raw count data is stored in a series of Reporter Code Count (\Rcode{.RCC}) files where each file holds the data for one sample. The \Rcode{rccFiles} argument should be assigned a vector of paths to these files. Alternatively, the \Rcode{.CSV} file produced using the RCC Collector Tool Format Export feature of NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software can be imported instead via the \Rcode{rccCollectorToolExport} argument (commented out in the example above), but we recommend importing the \Rcode{.RCC} files directly if they are available. Details for each probe in the codeset used in the experiment are specified in a Reporter Library File (\Rcode{.RLF}): a path to this file must always be specified via the \Rcode{rlf} argument. Optional additional details for each probe are usually provided by NanoString\textsuperscript{\textregistered}\ in the ``Design Data'' tab of the Codeset Design Report (CDR) --- an Excel spreadsheet that accompanies each codeset order. To import these details, an extract of the ``Design Data'' tab should be saved as a \Rcode{.CSV} file (see \Rcode{extdata/CDR} for an example) and then its path should be specified in the \Rcode{cdrDesignData} argument.
+
+The function has a few optional arguments that are described in more detail in its man page and in \textbf{Sample annotation} and \textbf{Codeset annotation} in the following section. For examples of the various input files, see the \Rcode{extdata} directory included with the package and the \textbf{Example files} section at the end of this vignette.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   RccSet loaded with NanoString data
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\section{RccSet loaded with NanoString\textsuperscript{\textregistered}\ data}
+
+The object returned by \Rfunction{newRccSet()} is an \Rclass{RccSet}. This class is a light extension of the standard \Rclass{ExpressionSet} class, and it enables \Rpackage{NanoStringQCPro} to more rigorously make use of the base \Rclass{ExpressionSet} data structure in a manner suitable for the preprocessing and quality control of NanoString\textsuperscript{\textregistered}\ data.
+
+<<example_rccSet>>=
+str(max.level=2, example_rccSet)
+@
+
+The \Rcode{experimentData} slot contains information about the experiment: its title and an abstract, and the name, lab, and contact information of the people who generated the data. \Rcode{assayData} is a pointer to an environment that contains a matrix called \Rcode{exprs} which initially contains the raw expression data imported from the \Rcode{.RCC} files. (Note: a pseudo-count of 1 is always added to all measurements to enable subsequent log transformation of the data in cases where zero-counts are present.) After preprocessing, this matrix will contain background-corrected and normalized data and there will be additional matrices in \Rcode{assayData} for each preprocessing step --- see sections below. \Rcode{phenoData} is an \Rclass{AnnotatedDataFrame} with information about the samples, and \Rcode{featureData} is a similar \Rclass{AnnotatedDataFrame} with information about the probes. The elements of \Rcode{phenoData} correspond to the columns of the \Rcode{exprs} matrix while those of \Rcode{featureData} correspond to its rows. The \Rcode{annotation} slot shows the name of the codeset. The \Rcode{protocolData} slot is currently unused.
+
+Note that \Biocpkg{Biobase} provides accessor functions for most key content: \Rfunction{experimentData()}, \Rfunction{assayData()}, \Rfunction{exprs()}, \Rfunction{phenoData()} (or \Rfunction{pData()} for the same content in a standard data frame), \Rfunction{featureData()} (or \Rfunction{fData()}), and \Rfunction{annotation()}. For more information about any of these functions or the \Rclass{ExpressionSet} class overall, see the \Biocpkg{Biobase} documentation. For more information on the additional methods provided by the \Rclass{RccSet} class, see the package's man pages.
+ 
+\subsection{Sample annotation}
+
+Any descriptions or details about the samples that are already present in the \Rcode{.RCC} files will be extracted by \Rfunction{newRccSet()} and stored in the \Rcode{phenoData} slot. Such details are often limited and insufficient for downstream work, so additional sample annotation can be added via \Rcode{.CSV} files specified in a vector of paths passed to the function's \Rcode{extraPdata} argument. Each of these annotation files should be comma-separated and should contain a column labeled \Rcode{FileName} whose values are the exact \Rcode{.RCC} file names. The \Rcode{FileName} column is used as the primary key for merging the annotation columns into \Rcode{phenoData}, and the function will return an error if it contains any missing or additional \Rcode{.RCC} filenames. One particularly important bit of sample information that can be added via one of these annotation files is the \Rcode{SampleType} column used primarily by the preprocessing and QC report functions to identify blank samples (i.e. water runs). If this column isn't specified as such, it will be assigned with default value \Rcode{NA} for all samples. (Note also that the `\Rcode{blankLabel}' argument to \Rcode{newRccSet()} should be the same as the value used in the annotation file.)
+
+\subsection{Codeset annotation}
+
+Three feature annotation columns (\Rcode{CodeClass}, \Rcode{GeneName}, \Rcode{Accession}) are extracted from the \Rcode{.RCC} files and stored in the \Rcode{featureData} slot. Their concatenation (``\Rcode{<CodeClass>\_<GeneName>\_<Accession>}'') is used for the \Rcode{featureData} row names and thus serves as a primary key for features; probe details in the \Rcode{.RLF} file are merged into \Rcode{featureData} using this key. An additional column named \Rcode{SpikeInInput} is added to record the RNA ``spike in'' input concentrations for the control probes in each codeset. These probes are identified by ``Positive'' and ``Negative'' values in the \Rcode{CodeClass} column, and their concentrations are parsed from the parenthesized label in the \Rcode{GeneName} (128, 32, 8, 2, 0.5, and 0.125 fM for positive control probes and 0 for all negative control probes in the mRNA Gene Expression assay). If \Rcode{addEgAnnotions == TRUE}, then \Rcode{featureData} is further annotated with EntrezGene identifiers and HGNC symbols by doing look ups in the \Biocpkg{org.Hs.eg.db} package using the RefSeq accessions indicated in the \Rcode{.RLF}. Note that \Rcode{NA} values will be assigned as the annotations for any accessions not found in \Biocpkg{org.Hs.eg.db}, and the values for other accessions will depend on the specific version of \Biocpkg{org.Hs.eg.db} that you have installed.
+
+The CDR for a given codeset is provided as an Excel file with multiple tabs containing information about the probe design history and the overall order. For the annotation of a codeset, only the ``Design Data'' tab is relevant: it has information such as probe identifiers and target sequences for all probes in the codeset. If the CDR is available, the ``Design Data'' tab can be saved as a comma delimited \Rcode{.CSV} file, and the \Rcode{cdrDesignData} argument of \Rfunction{newRccSet()} can be pointed at this file. The function will then add the relevant columns from the file to \Rcode{featureData}. See the \Rfunction{buildCodesetAnnotation()} man page for more details.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   Preprocessing
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Preprocessing}
+
+NanoString\textsuperscript{\textregistered}\ proposes several data preprocessing steps for
+NanoString\textsuperscript{\textregistered}\ gene expression data:
+
+\begin{itemize}
+
+\item \textbf{Positive control normalization}. Positive control normalization can be used to adjust for all platform-associated sources of variation (e.g., automated purification, hybridization conditions, etc.). This type of normalization will not, however, account for differences in sample input --- which is also an important source of systematic variation.
+
+\item \textbf{Background correction}. Background signal estimates --- ideally, probe-specific estimates --- are the basis for determining whether or not a specific transcript was detected in a given sample. In addition, background subtraction improves accuracy of fold change estimation across samples, especially for targets whose signal is above but still close to the background level. Global background signal estimates can be computed using negative controls. Probe-specific background signal estimates require running a small number of blanks in addition to the primary samples of interest (three or more blanks is recommended).
+
+\item \textbf{RNA content normalization}. To account for inevitable differences in total RNA input per sample, an additional step beyond positive control normalization is required. One such approach uses scaling to make the average signal for so-called ``housekeeping'' genes the same across all samples. Other non-linear approaches exist as well, but those in common use for microarray or whole-transcriptome RNA-seq data typically assume that most targets show no differential expression between conditions. For NanoString\textsuperscript{\textregistered}\ panels that include target sets that are highly focused on particular pathways or processes, this is often not a reasonable assumption, and as a consequence such approaches may not be appropriate.
+
+\end{itemize}
+
+% We have performed some small experiments and analyses in house to study the effects of different normalization approaches. These are the preliminary conclusions:
+% 
+% \renewcommand{\labelenumi}{(\roman{enumi})}     % This makes the enumeration below have "(i)", "(ii)", "(iii)", etc.
+% \begin{enumerate}
+% \item{ Positive control normalization is effective at making samples more comparable to each other (especially if you have no other means to normalize your data) by eliminating technical variability. }
+% \item{ If you are interested in getting as accurate an estimate of fold changes between conditions as possible, you should subtract background estimates. A positive control normalization before background subtraction is recommended. }
+% \item{ Background correction probably also increases sensitivity and specificity in differential expression analyses. }
+% \item{ The preferred methods to estimate background make use blank measurements: we recommend to use both blanks and negative controls. The default is to smoothly combine blanks and negative controls, and we strongly recommend enough blanks to make the negative control impact relatively minor. }
+% \item{ If you normalize for RNA content without first subtracting background estimates, there is no use in normalizing for positive control counts. }
+% \end{enumerate}
+
+For most data sets, we typically use the following approach:
+
+\renewcommand{\labelenumi}{(\roman{enumi})}
+
+\begin{enumerate}
+
+\item Positive control normalization, to first reduce technical variability. 
+
+\item Subtraction of background estimates. Our preferred method (described in more detail below) is identical to that of NanoString\textsuperscript{\textregistered}, and it makes use of both blank samples and negative control probes. The method smoothly combines blanks and negative controls --- relying wholly on the latter if no blanks are available, but largely ignoring negative controls as the number of blanks increases. We have observed strong and systematic differences in probe-specific background, and we therefore recommend including enough blanks to make the negative control impact on background estimation minor.
+
+\item RNA content normalization via housekeeping or global median scaling. Note that if background subtraction is omitted, there is no need to do both positive control and RNA content normalization: the latter will override the former.
+
+\end{enumerate}
+
+The \Rfunction{preprocRccSet()} function can be used to perform all recommended preprocessing steps (or any combination of them) in one go. It takes an \Rclass{RccSet} and the preprocessing parameters as input, and it returns a new \Rclass{RccSet} with \Rcode{exprs} containing the final result of the preprocessing. Results for intermediate preprocessing steps are included in additional matrices in \Rcode{assayData}, and the settings for each preprocessing step are recorded in correspondingly named elements in the \Rcode{preprocessing} slot of \Rcode{experimentData} (accessible via the \Rcode{preproc()} function provided by \Biocpkg{Biobase}). \textbf{Note:} Most downstream analysis is best performed on a logarithmic scale, so in the output's \Rcode{assayData}, the \Rcode{normData} matrix is on the log2 scale; all other matrices in \Rcode{assayData} are on the natural (original) scale.
+
+<<preprocRccSet>>=
+norm_example_rccSet <- preprocRccSet(rccSet = example_rccSet, normMethod = "housekeeping")
+
+# Warning message:
+# In .local(rccSet, ...) : Less than three housekeeping features are defined
+
+ls(assayData(norm_example_rccSet))
+preproc(norm_example_rccSet)
+@
+
+The following subsections further describe each individual preprocessing step.
+
+\subsection{Positive control normalization}
+
+The positive spike-in RNA hybridization controls for each lane may be used to estimate the overall efficiency of hybridization and recovery for each lane. To do so, a lane-specific summary (e.g., sum or, equivalently, average) of positive control counts is first calculated. The average of these per-lane values is then used as the target, and all counts for each lane are then scaled so that all lane-specific positive control summaries match the target.
+
+The \Rfunction{posCtrlNorm()} function performs positive control normalization. You can choose mean, median, or sum (the default) as the summary of positive control counts. NanoString\textsuperscript{\textregistered}\ advises caution with interpreting results of samples with positive control scaling factors outside the range of 0.3 to 3 since values outside this range may indicate significant under-performance of the respective lanes. A plot highlighting any outliers is provided in the QC report (see the \textbf{Quality control of NanoString\textsuperscript{\textregistered}\ expression data} section below), and \Rfunction{posCtrlNorm()} records the positive control scaling factors in a column named \Rcode{PosFactor} in the output's \Rcode{phenoData} for additional inspection.
+
+<<posCtrlNorm>>=
+adj_example_rccSet <- posCtrlNorm(example_rccSet, summaryFunction="sum")
+ls(assayData(adj_example_rccSet))
+preproc(adj_example_rccSet)
+head(pData(adj_example_rccSet)$PosFactor)
+@
+
+\subsection{Background correction}
+
+As mentioned above, NanoString\textsuperscript{\textregistered}\ includes several probes in each codeset for which no target is expected to be present. These negative controls can be used to produce global estimates for each lane. Importantly, such global estimates will not capture probe-specific differences in background --- which we have seen to often be quite large. The \Rpackage{NanoStringQCPro} package offers three ways to estimate the non-specific noise in a NanoString\textsuperscript{\textregistered}\ gene expression experiment, two of which are probe specific: 
+
+\begin{itemize} 
+
+\item \textbf{Lane-sepecific background}, based on signals obtained for negative controls in each lane.
+
+\item \textbf{Probe-specific background}, based on signals obtained for each probe in blank measurements without RNA present.
+
+\item \textbf{Combined probe- and lane-specific background}.
+
+\end{itemize} 
+
+A few examples are shown below using the \Rfunction{getBackground()} function. The algorithm that mimics the calculation used in NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software takes effect when the option to do combined probe- and lane-specific background is selected, and a full description of the algorithm and its parameters can be found in the man page for the \Rcode{nSolverBackground()} function in this package.
+
+<<getBackground>>=
+# Get background based on median signal for each probe in blank measurements:
+bg1 <- getBackground(adj_example_rccSet, bgReference="blanks", summaryFunction="median")
+
+# ...based on mean of negative controls:
+bg2 <- getBackground(adj_example_rccSet, bgReference="negatives", summaryFunction="mean")
+
+# ...using the same implementation as in the nSolver software:
+bg3 <- getBackground(adj_example_rccSet, bgReference="both", stringency=1)
+@ 
+
+Background signal can then be subtracted from the data by calling \Rfunction{subtractBackground()} on the background estimates matrix as obtained above.
+
+<<subtractBackground>>=
+bgcorr_example_rccSet <- subtractBackground(adj_example_rccSet, bgEstimates=bg1)
+ls(assayData(bgcorr_example_rccSet))
+preproc(bgcorr_example_rccSet)
+@
+
+\subsection{RNA content normalization}
+
+\Rpackage{NanoStringQCPro} offers two ways to normalize the NanoString\textsuperscript{\textregistered}\ count data to account for differences in input RNA content:
+
+\begin{itemize}
+
+\item \textbf{Median normalization.} Median expression values across all probes are equated (typically after positive control normalization and background correction have already been applied).
+
+\item \textbf{Housekeeping normalization.} Expression values for each probe are scaled relative the average signal from a small number of pre-specified genes ``housekeeping'' genes.
+
+\end{itemize}
+
+Median normalization is only recommended if a large number of genes are assayed in the experiment (NanoString\textsuperscript{\textregistered}\ recommends >300 probes) and most of them are not expected to change dramatically across conditions. Note that in this setting, other non-linear normalization techniques traditionally applied to microarray or RNA-seq data --- e.g., variance stabilizing transforms or quantile normalization --- may also be appropriate. (These are not currently implemented in \Rpackage{NanoStringQCPro}, but relevant code in other Bioconductor packages can be applied directly to the matrices in \Rcode{assayData}.)
+
+Housekeeping normalization is recommended if a reasonable number of low-variance features can be identified for the experiment. As in PCR experiments, the housekeeping genes should be carefully evaluated as part of the codeset design process. NanoString\textsuperscript{\textregistered}\ recommends using at least 3 housekeeping features, and ideally even more. If housekeeping normalization is selected, the normalization function will by default use the panel-specified housekeeping features (i.e., those whose \Rcode{CodeClass} is recorded as ``\Rcode{Housekeeping}'' in the \Rcode{.RCC} and \Rcode{.RLF} files), but these can be overridden by passing in a different list of feature identifiers or gene symbols. The \Rclass{RccSet} output by the normalization function will have a \Rcode{featureData} column named `\Rcode{Housekeeping}' that indicates which features were used for the normalization.
+
+\textbf{Note:} Final normalized data are on the log2 scale, unlike all other matrices in \Rcode{assayData}.
+
+<<contentNorm>>=
+gmnorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, method="median")
+hknorm_example_rccSet <- contentNorm(rccSet=bgcorr_example_rccSet, method="housekeeping")
+
+# Warning message:
+# In contentNorm(srccSet, method = "housekeeping", hk = hk) :
+#   Less than three housekeeping features are defined
+@
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   Quality control
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Quality control of NanoString\textsuperscript{\textregistered}\ expression data}
+
+\Rpackage{NanoStringQCPro} provides a single function, \Rfunction{makeQCReport()}, that generates a QC report in HTML format:
+
+<<makeQCReport>>=
+qc_example_rccSet <- makeQCReport(norm_example_rccSet, "example_QC_report")
+
+# Generating QC report...
+# Report file has been generated: /gne/home/richarbo/tmp/example_QC_report.html
+@ 
+
+The report includes detailed descriptions of the different quality control steps it performs and metrics it uses. Please see the example report generated above for full detail (a copy of the report can be found in \Rcode{extdata/example\_output}). In addition to generating the report, \Rfunction{makeQCReport()} also generates additional QC files:
+
+\begin{itemize}  
+
+\item \Rcode{SampleFlags.txt}: a tab-delimited file listing all samples along with their sample identifiers and sample types. Three \Rcode{TRUE}/\Rcode{FALSE} columns specify QC flags for each sample: one flag based on technical assay run information (\Rcode{TechnicalFlags}), one based on QC steps using signals obtained for positive and negative controls (\Rcode{ControlFlags}), and one based on QC steps using signals obtained for endogenous genes (\Rcode{CountFlags}).
+
+\item \Rcode{HousekeepingGeneStats.txt}: a tab-delimited file providing some metrics on the housekeeping genes. For each gene, values are provided for the variance, inter-quartile range (IQR), median expression, and correlation (cor) with all other housekeeping genes across all samples. (Note that this file will only be generated if housekeeping genes are indicated in the input via \Rcode{CodeClass} ``\Rcode{Housekeeping}'' or if housekeeping normalization has been evinced by the \Rcode{featureData} \Rcode{Housekeeping} column.)
+
+\end{itemize}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   Example files
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Example files}
+
+The package comes with the following example files corresponding to the example discussed throughout the vignette:
+
+\begin{itemize}
+
+\item \Rcode{extdata/RCC} contains \Rcode{.RCC} files as they would be produced by the nCounter\textsuperscript{\textregistered}\ instrument.
+
+\item \Rcode{extdata/nSolver/RCC\_collector\_tool\_export.csv} contains a \Rcode{.CSV} file as would be generated by the RCC Collector Tool Format Export feature of the NanoString\textsuperscript{\textregistered}\ nSolver\texttrademark\ Analysis Software. (This file contains the same data as the \Rcode{.RCC} files.)
+
+\item \Rcode{extdata/RLF} has the \Rcode{.RLF} annotation corresponding to the codeset used in the example.
+
+\item \Rcode{extdata/CDR} has the CDR ``Design Data'' annotation corresponding to the codeset used in the example.
+
+\item \Rcode{extdata/extraPdata} has additional sample annotation passed to the \Rcode{extraPdata} argument of \Rfunction{newRccSet()}.
+
+\item \Rcode{examples} contains \Rcode{.R} scripts illustrating the overall workflow.
+
+%\item \Rcode{extdata/example\_output} contains a copy of the QC report for the example discussed in this vignette.
+
+\end{itemize} 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   sessionInfo()
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Session info}
+
+<<sessionInfo>>=
+sessionInfo()
+@  
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%   LaTeX: end of document
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\end{document}
