@@ -10,7 +10,7 @@ myCols <- function() {
   myColsSet1 <- c("antiquewhite3", "aquamarine3", "azure3", "lightpink1", "cadetblue4", "coral2",
                   "firebrick", "lightblue", "olivedrab", "palevioletred3")
   myColsSet2 <- c("darkgoldenrod", "darkgoldenrod2", "cornflowerblue", "darkkhaki", "coral3",
-                  "chartreuse3", "dodgerblue4", "blueviolet", "darkturquoise", "thistle4") 
+                  "chartreuse3", "dodgerblue4", "blueviolet", "darkturquoise", "thistle4")
   myColsSet3 <- c("darkgreen", "darkmagenta", "cyan4", "darkorange", "darkred", "gold",
                   "darkblue", "deeppink2", "yellowgreen", "orangered3")
   c(myColsSet3, myColsSet2, myColsSet1)
@@ -19,7 +19,7 @@ myCols <- function() {
 ##' @title          dCoVar
 ##' @description    Determine standard deviation at a certain percent CV
 ##'
-##' @param  x       numeric vector 
+##' @param  x       numeric vector
 ##' @param  d       scalar numeric, percent CV
 ##' @param  ...     additional parameters passed on to mean()
 ##'
@@ -34,7 +34,7 @@ dCoVar <- function(x, d, ...) {
 ##' @title          cutoffByVar
 ##' @description    Determine cutoffs of x (for outlier detection) based on a certain percent CV
 ##'
-##' @param  x       numeric vector 
+##' @param  x       numeric vector
 ##' @param  d       scalar numeric, percent CV; passed on to dCoVar
 ##' @param  ...     additional parameters passed on to mean()
 ##'
@@ -52,7 +52,7 @@ cutoffByVar <- function(x, d, ...) {
 ##' @title          cutoffByMMAD
 ##' @description    Determine cutoffs of x (for outlier detection) based on median
 ##'
-##' @param  x       numeric vector 
+##' @param  x       numeric vector
 ##' @param  d       scalar numeric, factor by which to multiply MAD of x
 ##' @param  ...     additional parameters passed on to median()
 ##'
@@ -70,7 +70,7 @@ cutoffByMMAD <- function(x, d, ...) {
 ##' @title          colByFun
 ##' @description    Color x based on upper and lower thresholds
 ##'
-##' @param  x           Numeric vector 
+##' @param  x           Numeric vector
 ##' @param  thresholds  List of length 2, with a scalar numeric in each slot, one giving the lower the upper threshold (for outlier definition)
 ##'
 ##' @return
@@ -79,7 +79,7 @@ cutoffByMMAD <- function(x, d, ...) {
 ##' @author Dorothee Nickles
 ##'
 colByFun <- function(x, thresholds) {
-  ifelse(x < thresholds[[1]], "red", 
+  ifelse(x < thresholds[[1]], "red",
       ifelse(x > thresholds[[2]], "red", "black"))
 }
 
@@ -100,11 +100,11 @@ colByCovar <- function(pdata, covar) {
     stop("The covariate you chose is not defined.")
   } else {
     diffTypes <- list()
-    diffTypes[["color"]] <- myCols()[as.numeric(as.vector(factor(pdata[, covar], 
+    diffTypes[["color"]] <- myCols()[as.numeric(as.vector(factor(pdata[, covar],
             labels=c(1:length(unique(pdata[, covar]))))))]
     diffTypes[["legend"]] <- unique(pdata[, covar])
     return(diffTypes)
-  }         
+  }
 }
 
 setGeneric( "fovPlot", function( rccSet ) standardGeneric( "fovPlot" ) )
@@ -141,7 +141,7 @@ setMethod(
          las=1,
          col=ifelse(fov < 0.8, "red", "black"),
          ylim=c(min(fov, 0.8), 1))
-    abline(h=0.8, col="red", lty=2)	
+    abline(h=0.8, col="red", lty=2)
   }
   )
 
@@ -153,7 +153,7 @@ setGeneric( "bdPlot", function( rccSet ) standardGeneric( "bdPlot" ) )
 ##'
 ##' @description
 ##' Plot the binding density of each sample in an RccSet object.
-##' Samples with a binding density < 0.05 or > 2.25 (thresholds defined by NanoString) 
+##' Samples with a binding density < 0.05 or > 2.25 (thresholds defined by NanoString)
 ##' are marked in red (dashed red line indicates threshold).
 ##'
 ##' @param  rccSet  An RccSet object
@@ -167,12 +167,12 @@ setMethod(
   "bdPlot",
   "RccSet",
   function(rccSet) {
-    plot(as.numeric(as.vector(pData(rccSet)$BindingDensity)), pch=16, 
+    plot(as.numeric(as.vector(pData(rccSet)$BindingDensity)), pch=16,
          ylim=c(0, max(c(as.numeric(as.vector(pData(rccSet)$BindingDensity)), 2.25))),
          main="Binding Density", ylab="Binding density",
          xlab="Sample Index",
          las=1,
-         col=ifelse(as.numeric(as.vector(pData(rccSet)$BindingDensity)) > 2.25, "red", 
+         col=ifelse(as.numeric(as.vector(pData(rccSet)$BindingDensity)) > 2.25, "red",
               ifelse(as.numeric(as.vector(pData(rccSet)$BindingDensity)) < 0.05, "red", "black")))
     abline(h=c(0.05, 2.25), col="red", lty=2)
   }
@@ -224,29 +224,29 @@ setMethod(
   "RccSet",
   function(rccSet) {
     par(mfrow=c(1,2))
-  
+
     M <- assayData(rccSet)$exprs
-  
+
     negCtrls <- (fData(rccSet)$CodeClass == "Negative")
     M.negCtrls <- M[ negCtrls, ]
     rownames(M.negCtrls) <- fData(rccSet)$GeneName[negCtrls]
     M.negCtrls.ordered <- M.negCtrls[ order(rownames(M.negCtrls)), ]
-  
+
     boxplot(t(M.negCtrls.ordered),
             las=2,
             cex.axis=0.6,
             ylab="counts (raw)",
             log="y",
             main="Negative Controls")
-  
+
     posCtrls <- which(fData(rccSet)$CodeClass == "Positive")
     M.posCtrls <- M[ posCtrls, ]
     rownames(M.posCtrls) <- fData(rccSet)$GeneName[posCtrls]
     M.posCtrls.ordered <- M.posCtrls[ order(rownames(M.posCtrls)), ]
-  
+
     boxplot(t(M.posCtrls.ordered),
             las=2,
-            cex.axis=0.6, 
+            cex.axis=0.6,
             ylab="counts (raw)",
             log="y",
             main="Positive Controls")
@@ -267,7 +267,7 @@ setGeneric( "negCtrlsPlot", function( rccSet ) standardGeneric( "negCtrlsPlot" )
 ##' @param  rccSet  An RccSet object
 ##'
 ##' @return
-##' A plot with two panels: one showing boxplots for the individual negative controls across all samples, and 
+##' A plot with two panels: one showing boxplots for the individual negative controls across all samples, and
 ##' one showing boxplots for the negative control counts for each individual sample (lane-specific background).
 ##'
 ##' @author Dorothee Nickles
@@ -276,31 +276,31 @@ setMethod(
   "negCtrlsPlot",
   "RccSet",
   function(rccSet) {
-    
+
     negCtrls <- (fData(rccSet)$CodeClass == "Negative")
     M <- assayData(rccSet)$exprs
-  
+
     par(mfrow=c(1,2))
-  
+
     boxplot(t(M[ negCtrls, ]),
             las=2,
             cex.axis=0.6,
             ylab="counts (raw)",
             log="y",
             main="Negative Controls")
-  
+
     boxplot(M[ negCtrls, ],
             log="y",
             xaxt="n",
             col=myCols()[ pData(rccSet)$LaneID ],
             ylab="counts",
             xlab="lane")
-  
+
     axis(1,
          at = 1:ncol(M),
          labels = as.integer(pData(rccSet)$LaneID),
          cex.axis=0.6)
-  
+
     n <- 1
     for (i in 1:length(unique(pData(rccSet)$StagePosition))) {
       tmp <- which(pData(rccSet)$StagePosition == pData(rccSet)$StagePosition[i])
@@ -336,12 +336,12 @@ setMethod(
   "negCtrlsByLane",
   "RccSet",
   function(rccSet) {
-  
+
     negCtrls <- (fData(rccSet)$CodeClass == "Negative")
-  
+
     M <- assayData(rccSet)$exprs
     laneid <- as.numeric(pData(rccSet)$LaneID)
-  
+
     boxplot(
        M[ negCtrls, ]
       ,log="y"
@@ -390,9 +390,9 @@ setMethod(
 negCtrlsByLane_verticalPlot <- function(rccSet, outputFile)
 {
   rccSet.sorted <- rccSet[ , rev(order(rownames(pData(rccSet))))]
-  
+
   negCtrls <- (fData(rccSet.sorted)$CodeClass == "Negative")
-  
+
   M <- assayData(rccSet.sorted)$exprs
   laneid <- as.numeric(pData(rccSet.sorted)$LaneID)
 
@@ -403,11 +403,11 @@ negCtrlsByLane_verticalPlot <- function(rccSet, outputFile)
       units="px",
       pointsize=7
   )
-  
+
   par(mai=c(0.5,3,0.5,0.75))
-  
+
   par(yaxs="i")
-  
+
   boxplot(M[negCtrls, ],
           horizontal=TRUE,
           log="x",
@@ -438,9 +438,9 @@ negCtrlsByLane_verticalPlot <- function(rccSet, outputFile)
          bty="n",
          fill=myCols()[sort(unique(laneid))],
          legend=paste(rep("Lane", length(unique(laneid))), sort(unique(laneid))))
-  
+
   dev.off()
-  
+
   return(TRUE)
 }
 
@@ -475,7 +475,7 @@ panelCor <- function(x, y, digits=2, cex.cor=0.75, doTest=FALSE)
   txt <- format(c(r, 0.123456789), digits=digits)[1]
   if (doTest) {
     test <- cor.test(x,y)
-    Signif <- ifelse(round(test$p.value,3)<0.001,"p<0.001",paste("p=",round(test$p.value,3)))  
+    Signif <- ifelse(round(test$p.value,3)<0.001,"p<0.001",paste("p=",round(test$p.value,3)))
     text(0.5, 0.25, paste("r=",txt))
     text(.5, .75, Signif)
   } else {
@@ -503,15 +503,15 @@ setMethod(
   "negCtrlsPairs",
   "RccSet",
   function(rccSet, log.transform=FALSE) {
-  
+
     M <- assayData(rccSet)$exprs
     negCtrls <- fData(rccSet)$CodeClass == "Negative"
-  
+
     tmp <- M[ negCtrls, ]
     if (log.transform) {
       tmp <- log2(tmp)
     }
-  
+
     pairs(t(tmp),
           upper.panel=panelCor,
           lower.panel=scatterPair)
@@ -544,14 +544,14 @@ setMethod(
         positives <- (fData(rccSet)$CodeClass == "Positive")
 
         posFactor <- pData(rccSet)$PosFactor
-      
+
         plot(posFactor,
              las = 1,
              cex.axis = 0.6,
              ylab = "Positive control scaling factor",
              pch = 16,
              xlab = "Sample index",
-             main = "Positive control scaling factors across samples", 
+             main = "Positive control scaling factors across samples",
              col = ifelse(posFactor < 0.3, "red", ifelse(posFactor > 3, "red", "black")),
              ylim = c(min(c(posFactor, 0.3)), max(c(posFactor, 3))))
         abline(h = c(0.3, 3),
@@ -595,15 +595,15 @@ setMethod(
   "ctrlsZprimePlot",
   "RccSet",
   function(rccSet) {
-  
+
     M <- assayData(rccSet)$exprs
     negatives    <- (fData(rccSet)$CodeClass == "Negative")
     positive_128 <- (fData(rccSet)$SpikeInInput == 128)
     positive_32  <- (fData(rccSet)$SpikeInInput == 32)
     positive_8   <- (fData(rccSet)$SpikeInInput == 8)
-  
+
     posN <- log2(apply( M[negatives, ], 2, median ))
-    
+
     zfac1 <- round(zfacFun(log2(M[ positive_128, ]), posN), digits=2)
     zfac2 <- round(zfacFun(log2(M[ positive_32,  ]), posN), digits=2)
     zfac3 <- round(zfacFun(log2(M[ positive_8,   ]), posN), digits=2)
@@ -611,7 +611,7 @@ setMethod(
          col = myCols()[1],
          xlim = c(1, log2(max(M[ positive_128, ]))),
          main = "Frequency distributions of log2 transformed counts\nfor negative and positive controls")
-    lines(density(log2(M[ positive_8,   ])), col=myCols()[2])        		
+    lines(density(log2(M[ positive_8,   ])), col=myCols()[2])
     lines(density(log2(M[ positive_32,  ])), col=myCols()[3])
     lines(density(log2(M[ positive_128, ])), col=myCols()[4])
     legend("top",
@@ -673,22 +673,22 @@ setMethod(
   {
     codeClass <- match.arg(codeClass)
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
-  
+
     iqr <- apply(log2(M[ fData(rccSet)$CodeClass == codeClass, ]), 2, IQR)
     thresholds <- fun(iqr, stringency)
-  
+
     plot(iqr,
          las = 1,
          cex.axis = 0.6,
          ylab = "counts (log2)",
          pch = 16,
          xlab = "Sample index",
-         main = sprintf("IQR of code class %s across samples", codeClass), 
-         col = colByFun(iqr, thresholds), 
+         main = sprintf("IQR of code class %s across samples", codeClass),
+         col = colByFun(iqr, thresholds),
          ylim = c(min(c(iqr, unlist(thresholds))), max(c(iqr, unlist(thresholds)))))
-  
+
     abline(h = unlist(thresholds),
            col = "red",
            lty = 2)
@@ -718,10 +718,10 @@ setMethod(
   function(rccSet)
   {
     par(mfrow=c(1,1))
-  
+
     M <- assayData(rccSet)$exprs
     positives <- (fData(rccSet)$CodeClass == "Positive")
-  
+
     tmp <- apply(log2(M[positives, ]),
                  2,
                  function(x) { summary(lm(x ~ log2(fData(rccSet)$SpikeInInput[ positives ])))$r.squared })
@@ -729,7 +729,7 @@ setMethod(
          pch = 16,
          col = ifelse(tmp < 0.95, "red", "black"),
          main = "R2 for linearity in positive controls")
-  
+
     abline(h=0.95, col="red", lty=2)
   }
   )
@@ -774,10 +774,10 @@ setMethod(
            stringency = 4)
   {
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
     positives <- (fData(rccSet)$CodeClass == "Positive")
-  
+
     tmp <- apply(log2(M[positives, ]),
                  2,
                  function(x) { coefficients(lm(x ~ log2(fData(rccSet)$SpikeInInput[ positives ])))[2] })
@@ -790,7 +790,7 @@ setMethod(
          xlab = "Sample index",
          ylim = c(min(c(tmp, unlist(thresholds))), max(c(tmp, unlist(thresholds)))),
          las = 1)
-  
+
     abline(h=unlist(thresholds), col="red", lty=2)
   }
   )
@@ -836,28 +836,28 @@ setMethod(
            stringency = 4)
   {
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
     positives <- (fData(rccSet)$CodeClass == "Positive")
-  
+
     meanPos <- log2(colMeans(M[positives, ]))
     meanPosMean <- mean(meanPos)
     meanPosRatio <- meanPos/meanPosMean
     thresholds <- fun(meanPosRatio, stringency)
-  
+
     plot(y = meanPosRatio,
          x = 1:ncol(M),
          las = 2,
-         cex.axis = 0.6, 
+         cex.axis = 0.6,
          ylab = "mean pos ctrl counts/overall mean of pos ctrl counts",
          xlab="Sample index",
-         main = "", 
+         main = "",
          pch = 16,
          xlab = "samples",
          col = colByFun(meanPosRatio, thresholds),
          log = "y",
          ylim = c(min(c(meanPosRatio, unlist(thresholds))), max(c(meanPosRatio, unlist(thresholds)))))
-  
+
     abline(h=unlist(thresholds), col="red", lty=2)
   }
   )
@@ -903,14 +903,14 @@ setMethod(
            stringency = 4)
   {
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
     nonctrls <- (fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
-  
+
     allSum <- colSums(M[nonctrls, ])
     thresholds <- fun(log2(allSum), stringency)
     blankLabel <- getBlankLabel(rccSet)
-  
+
     plot(y = allSum,
          x = 1:ncol(M),
          log = "y",
@@ -918,12 +918,12 @@ setMethod(
          cex.axis = 0.6,
          ylab = "sum of counts",
          xlab = "Sample index",
-         main = "Sum of raw counts for all probes", 
+         main = "Sum of raw counts for all probes",
          col = colByFun(log2(allSum), thresholds),
          pch = ifelse( (pData(rccSet)$SampleType %in% blankLabel), 17, 16),
          ylim = as.integer(c(min(c(allSum, 2^unlist(thresholds))), max(c(allSum, 2^unlist(thresholds)))))
          )
-  
+
     abline(h=2^unlist(thresholds), col="red", lty=2)
   }
   )
@@ -971,9 +971,9 @@ setMethod(
            stringency = 4)
   {
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
-  
+
     iSum <- colSums(M[fData(rccSet)$CodeClass %in% "Positive",])
     nSum <- colSums(M[fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"),])
 
@@ -984,7 +984,7 @@ setMethod(
     thresholds <- fun(iSum/nSum, stringency)
 
     blankLabel <- getBlankLabel(rccSet)
-  
+
     plot(y = iSum/nSum,
          x = 1:ncol(M),
          las = 1,
@@ -1047,20 +1047,20 @@ setMethod(
     fun <- match.fun(method)
 
     M <- assayData(rccSet)$exprs
-  
+
     negatives    <- (fData(rccSet)$CodeClass == "Negative")
     positives    <- (fData(rccSet)$CodeClass == "Positive")
     positive_128 <- (fData(rccSet)$SpikeInInput == 128)
-  
+
     a <- apply(log2(M[negatives, ]), 2, IQR)
     ctrls <- which(colByFun(a, fun(a, stringency)) == "red")
-  
+
     a <- apply(log2(M[positives, ]), 2, IQR)
     ctrls <- c(ctrls, which(colByFun(a, fun(a, stringency)) == "red"))
-  
+
     #a <- log2(M[positive_128, ])
     #ctrls <- c(ctrls, which(colByFun(a, fun(a, stringency)) == "red"))
-  
+
     a <- apply(log2(M[positives, ]),
                2,
                function(x) { coefficients(lm(x ~ log2(fData(rccSet)$SpikeInInput[ positives ])))[2] })
@@ -1195,12 +1195,12 @@ setMethod(
            maxMiss = 0.2)
   {
     fun <- match.fun(method)
-  
+
     M <- assayData(rccSet)$exprs
-  
+
     positives  <- (fData(rccSet)$CodeClass == "Positive")
     endogenous <- (fData(rccSet)$CodeClass == "Endogenous")
-  
+
     posSum <- colSums(M[positives, ])
     allSum <- colSums(M[endogenous, ])
 
@@ -1216,7 +1216,7 @@ setMethod(
       which(colByFun(posSum/allSum, fun(posSum/allSum, stringency*3)) == "red"),
       flagged_maxMiss
     ))
-  
+
     return(sampC)
   }
   )
@@ -1258,17 +1258,17 @@ setMethod(
         blankLabel <- getBlankLabel(rccSet)
         nonctrls <- (fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
         n_nonctrls <- sum(nonctrls)
-      
+
         misValues <- lodAssess(rccSet)
-      
-        plot(misValues/n_nonctrls, 
+
+        plot(misValues/n_nonctrls,
              col = ifelse(misValues/n_nonctrls >= maxMiss, "red", "black"),
              pch = ifelse(pData(rccSet)$SampleType %in% blankLabel, 17, 16),
              main = "Sample Missingness",
              ylab = "Fraction of genes below background estimate",
              xlab = "Sample index",
              las = 1)
-      
+
         abline(h=maxMiss, col="red", lty=2)   # was: abline(h=length(nonctrls)*maxMiss, col="red", lty=2) -RZ 2015-03-27
 
     } else {
@@ -1283,7 +1283,7 @@ setGeneric( "sampleClustering", function( rccSet, ... ) standardGeneric( "sample
 ##'
 ##' @title
 ##' Clustering by sample correlation
-##' 
+##'
 ##' @description
 ##' Clustering by sample correlation
 ##'
@@ -1295,7 +1295,7 @@ setGeneric( "sampleClustering", function( rccSet, ... ) standardGeneric( "sample
 ##'
 ##' @param main
 ##' Plot title
-##' 
+##'
 ##' @param annCol
 ##' See \code{\link{aheatmap}}
 ##'
@@ -1322,7 +1322,7 @@ setMethod(
            covar = "SampleType")
   {
     M <- assayData(rccSet)$exprs
-  
+
     # Remove any zero-variance rows. These rows are problematic
     # in the heatmap-plotting code that follows (they cause NA values in the output of cor() which
     # in turn causes hclust() to error out).
@@ -1339,7 +1339,7 @@ setMethod(
         )
       )
       M <- M[ , !zero_variance]
-      pdata <- pData(rccSet)[ !zero_variance ] 
+      pdata <- pData(rccSet)[ !zero_variance ]
     } else {
      #M <- M
       pdata <- pData(rccSet)
@@ -1359,7 +1359,7 @@ setMethod(
       stop("This function is designed to plot a heatmap of up to 1000 samples")
 
     # Generate the heatmap. Given the finicky aheatmap() behavior, need different
-    # settings when the input is small (<50 samples) or large (>50). 
+    # settings when the input is small (<50 samples) or large (>50).
 
     if (ncol(M) < 50) {
 
@@ -1431,10 +1431,10 @@ countsInBlankSamples_verticalPlot <- function(rccSet, outputFile)
     blankLabel <- getBlankLabel(rccSet)
     blanks <- (pData(rccSet)$SampleType %in% blankLabel)
     endo   <- which(fData(rccSet)$CodeClass %in% c("Endogenous", "Housekeeping"))
-    
+
     M <- assayData(rccSet)$exprs
-    rownames(M) <- fData(rccSet)$GeneName   
-    
+    rownames(M) <- fData(rccSet)$GeneName
+
     png(filename=outputFile,
         width=2250,
         height=200 + 30*nrow(M),
@@ -1442,11 +1442,11 @@ countsInBlankSamples_verticalPlot <- function(rccSet, outputFile)
         units="px",
         pointsize=7
         )
-    
+
     par(mai=c(0.5,1.5,0.5,0.25))
 
     par(yaxs="i")
-    
+
     boxplot(t(M[endo, blanks]),
             horizontal=TRUE,
             log="x",
@@ -1467,13 +1467,13 @@ countsInBlankSamples_verticalPlot <- function(rccSet, outputFile)
                     pch=20,
                     cex=0.7)
            })
-    
+
     dev.off()
   }
   else {
     print("No blank samples are present")
   }
-  
+
   return(TRUE)
 }
 
@@ -1494,13 +1494,13 @@ countsInBlankSamples_verticalPlot <- function(rccSet, outputFile)
 ##' @author Dorothee Nickles
 ##'
 densityPlot <- function(M, log.transform=FALSE, pdata, covar, ...) {	## takes exprSet
-  
+
   stopifnot(is(M, "matrix"))
 
   if (log.transform) {
-    M <- log2(M)  
+    M <- log2(M)
   }
-  
+
   cols <- colByCovar(pdata, covar)
   plot(density(M[,1]),
        ylim=c(0,0.5),
@@ -1543,16 +1543,16 @@ setMethod(
   "assessHousekeeping",
   "RccSet",
   function(rccSet, hk, covar, annotate=TRUE, plot=TRUE, digits=2) {
-  
+
     if (!is.logical(hk)) {
       stop("Please provide logical vector assigning whether each gene serves as a housekeeping gene or not.")
     }
     if (sum(hk) == 1) {
       stop("You need more than one housekeeping gene to use this function.")
     }
-  
+
     M <- assayData(rccSet)$exprs
-  
+
     values <- rownames(M[hk, ])
     if (annotate) {
       values <- fData(rccSet)$GeneName[hk]
@@ -1564,16 +1564,16 @@ setMethod(
         n <- n+1
       }
     }
-  
+
     if(plot == TRUE){
-      pairs(t(log2(M[hk, ])), 
+      pairs(t(log2(M[hk, ])),
             main = "Correlation of housekeeping genes",
             col = colByCovar(pData(rccSet), covar)[["color"]],
             labels = values,
             pch = 20,
             las = 1)
     }
-  
+
     output <- data.frame(matrix(nrow=sum(hk), ncol=0))
     output[,1] <- values
     output[,2] <- var(t(log2(M[hk, ])))[,1]
@@ -1582,7 +1582,7 @@ setMethod(
     output[, 5:(sum(hk)+4)] <- cor(t(log2(M[hk, ])))
     output[,c(2:ncol(output))] <- round(output[,c(2:ncol(output))], digits=digits)
     colnames(output) <- c("Gene", "Variance", "IQR", "median", paste("cor", values, sep="_"))
-  
+
     return(output)
   }
   )
@@ -1721,7 +1721,21 @@ centeredSampleClustering <- function(gmrccSet,
         flagged <- unique(unlist(apply(flags, 2, which)))
 
         temp_rccSet <- copyRccSet(gmrccSet)[, -flagged]
-        
+
+        if(ncol(temp_rccSet)==0)
+        {
+          warning("All samples are flagged.  Generating empty plot.")
+          png( filename = outputFile, width = 370 / 72, height = 370 / 20, units="in", res=72 )
+          plot.new()
+          text(x=0.5 * (par("usr")[1] + par("usr")[2]),
+               y=0.5 * (par("usr")[3] + par("usr")[4]),
+               labels="All samples are flagged./nNo Samples to Plot.",
+               adj=c(0.5, 0.5)
+               )
+          dev.off()
+          return()
+        }
+
         gmrccSet <- contentNorm(temp_rccSet,
                                 method = "global",
                                 summaryFunction = "median",
@@ -1804,7 +1818,7 @@ centeredSampleClustering <- function(gmrccSet,
 
       png( filename = outputFile, width = width, height = height, units="in", res=72 )
 
-      aheatmap( M, 
+      aheatmap( M,
                #annColors   = annColors,
                 annCol      = annCol,
                 color       = "-RdBu",
@@ -1832,7 +1846,7 @@ centeredSampleClustering <- function(gmrccSet,
 
       png( filename = outputFile, width = width, height = height, units = "in", res = 300 )
 
-      aheatmap( M, 
+      aheatmap( M,
                #annColors   = annColors,
                 annCol      = annCol,
                 color       = "-RdBu",
@@ -1853,7 +1867,7 @@ centeredSampleClustering <- function(gmrccSet,
                 main        = main )
 
       dev.off()
-      
+
     }
 }
 
